@@ -244,6 +244,69 @@ export interface BravoRoutesResponse {
   preview: unknown;
 }
 
+export type BravoCompatibilityFixKind = 'code' | 'yaml' | 'route';
+
+export type BravoCompatibilityClassification =
+  'supported' | 'code_fix' | 'yaml_fix' | 'route_fix' | 'unknown';
+
+export interface BravoCompatibilityReason {
+  code: string;
+  message: string;
+}
+
+export interface BravoCompatibilityTarget {
+  kind: BravoCompatibilityFixKind;
+  path: string;
+  selector: string;
+}
+
+export interface BravoCompatibilityFix {
+  code: string;
+  kind: BravoCompatibilityFixKind;
+  title: string;
+  reason: string;
+  reasonCodes?: string[];
+  target: string;
+  targets?: string[];
+  format: string;
+  snippet: string;
+  safeToApplyAutomatically: boolean;
+}
+
+export interface BravoCompatibilityModel {
+  provider: string;
+  model: string;
+  displayName: string;
+  classification: BravoCompatibilityClassification;
+  baseModel: string;
+  routeIds: string[];
+  availableAccounts: number | null;
+  catalog: boolean | null;
+  available: boolean | null;
+  detected: Record<string, boolean>;
+  reasons: BravoCompatibilityReason[];
+  targets: BravoCompatibilityTarget[];
+  requiredFixes: string[];
+  fixes: BravoCompatibilityFix[];
+}
+
+export interface BravoCompatibilitySummary {
+  total: number;
+  supported: number;
+  codeFix: number;
+  yamlFix: number;
+  routeFix: number;
+  actionRequired: number;
+}
+
+export interface BravoCompatibilityResponse {
+  schemaVersion: number;
+  generatedAt: string;
+  failClosed: boolean | null;
+  summary: BravoCompatibilitySummary;
+  models: BravoCompatibilityModel[];
+}
+
 const asString = (value: unknown): string => (typeof value === 'string' ? value : '');
 
 const decodeDisplayText = (value: unknown): string =>
@@ -717,6 +780,294 @@ export const normalizeBravoRoutesResponse = (value: unknown): BravoRoutesRespons
   };
 };
 
+const normalizeCompatibilityFixKind = (value: unknown): BravoCompatibilityFixKind | null => {
+  const normalized = asString(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+  if (['code', 'code_fix', 'requires_code', 'needs_code', 'code_required'].includes(normalized)) {
+    return 'code';
+  }
+  if (['yaml', 'yaml_fix', 'requires_yaml', 'needs_yaml', 'yaml_required'].includes(normalized)) {
+    return 'yaml';
+  }
+  if (
+    ['route', 'route_fix', 'requires_route', 'needs_route', 'route_required'].includes(normalized)
+  ) {
+    return 'route';
+  }
+  return null;
+};
+
+const normalizeCompatibilityClassification = (
+  value: unknown,
+  fallbackKind: BravoCompatibilityFixKind | null
+): BravoCompatibilityClassification => {
+  const normalized = asString(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+  if (['supported', 'compatible', 'ready', 'ok'].includes(normalized)) return 'supported';
+  const kind = normalizeCompatibilityFixKind(normalized) ?? fallbackKind;
+  return kind ? `${kind}_fix` : 'unknown';
+};
+
+const normalizeCompatibilityReason = (value: unknown): BravoCompatibilityReason | null => {
+  if (typeof value === 'string') {
+    const message = value.trim();
+    return message ? { code: '', message } : null;
+  }
+  const source = isRecord(value) ? value : {};
+  const message = asString(source.message ?? source.reason ?? source.description).trim();
+  const code = asString(source.code ?? source.id).trim();
+  if (!message && !code) return null;
+  return { code, message: message || code };
+};
+
+const normalizeCompatibilityTarget = (value: unknown): BravoCompatibilityTarget | null => {
+  const source = isRecord(value) ? value : {};
+  const kind = normalizeCompatibilityFixKind(source.kind ?? source.type);
+  if (!kind) return null;
+  return {
+    kind,
+    path: asString(source.path ?? source.target).trim(),
+    selector: asString(source.selector ?? source.key).trim(),
+  };
+};
+
+const compatibilityTargetLabel = (
+  source: Record<string, unknown>,
+  target: BravoCompatibilityTarget | undefined
+): string => {
+  const direct = asString(source.target).trim();
+  if (direct) return direct;
+  if (!target) return '';
+  if (target.path && target.selector) return `${target.path} · ${target.selector}`;
+  return target.path || target.selector;
+};
+
+const normalizeCompatibilityFix = (
+  value: unknown,
+  fallbackKind: BravoCompatibilityFixKind,
+  reasons: BravoCompatibilityReason[],
+  targets: BravoCompatibilityTarget[]
+): BravoCompatibilityFix | null => {
+  const source = isRecord(value) ? value : {};
+  const kind = normalizeCompatibilityFixKind(source.kind ?? source.type) ?? fallbackKind;
+  const snippet = asString(source.snippet ?? source.patch ?? source.example).trim();
+  const title = asString(source.title ?? source.name).trim();
+  const reason = asString(source.reason ?? source.description).trim();
+  const reasonCodes = [
+    asString(source.reason_code ?? source.reasonCode).trim(),
+    ...asStringArray(source.reason_codes ?? source.reasonCodes),
+  ].filter((code, index, all) => code && all.indexOf(code) === index);
+  const contextualReasons = reasonCodes.flatMap((code) =>
+    reasons.filter((candidate) => candidate.code === code)
+  );
+  const explicitTargets = [
+    ...(Array.isArray(source.targets)
+      ? source.targets
+          .map(normalizeCompatibilityTarget)
+          .filter((target): target is BravoCompatibilityTarget => target !== null)
+      : []),
+    ...(normalizeCompatibilityTarget(source.target)
+      ? [normalizeCompatibilityTarget(source.target) as BravoCompatibilityTarget]
+      : []),
+  ];
+  const contextualTargets =
+    explicitTargets.length > 0
+      ? explicitTargets
+      : targets.filter((candidate) => candidate.kind === kind);
+  const targetLabels = contextualTargets
+    .map((target) => compatibilityTargetLabel({}, target))
+    .filter((label, index, all) => label && all.indexOf(label) === index);
+  const directTarget = asString(source.target).trim();
+  if (directTarget && !targetLabels.includes(directTarget)) targetLabels.unshift(directTarget);
+  if (!title && !snippet && targetLabels.length === 0 && !reason) return null;
+  return {
+    code: asString(source.code ?? source.id).trim(),
+    kind,
+    title: title || asString(source.code).trim() || `${kind}_fix`,
+    reason:
+      reason ||
+      contextualReasons
+        .map((candidate) => candidate.message)
+        .filter(Boolean)
+        .join(' ') ||
+      reasons[0]?.message ||
+      '',
+    reasonCodes,
+    target: targetLabels.join('; '),
+    targets: targetLabels,
+    format: asString(source.format ?? source.language).trim(),
+    snippet,
+    safeToApplyAutomatically:
+      asNullableBoolean(source.safe_to_apply_automatically ?? source.safeToApplyAutomatically) ===
+      true,
+  };
+};
+
+const normalizeCompatibilityDetected = (value: unknown): Record<string, boolean> => {
+  if (Array.isArray(value)) {
+    return Object.fromEntries(
+      value
+        .map((entry) => asString(entry).trim())
+        .filter(Boolean)
+        .map((entry) => [entry, true])
+    );
+  }
+  if (typeof value === 'boolean') return { detected: value };
+  if (!isRecord(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value)
+      .map(([key, entry]) => [key, asNullableBoolean(entry)] as const)
+      .filter((entry): entry is readonly [string, boolean] => entry[1] !== null)
+  );
+};
+
+const normalizeCompatibilityModel = (value: unknown): BravoCompatibilityModel | null => {
+  const source = isRecord(value) ? value : {};
+  const model = asString(source.model ?? source.id).trim();
+  if (!model) return null;
+
+  const reasons = Array.isArray(source.reasons)
+    ? source.reasons
+        .map(normalizeCompatibilityReason)
+        .filter((reason): reason is BravoCompatibilityReason => reason !== null)
+    : [];
+  const targets = Array.isArray(source.targets)
+    ? source.targets
+        .map(normalizeCompatibilityTarget)
+        .filter((target): target is BravoCompatibilityTarget => target !== null)
+    : [];
+  const rawRequiredFixes = Array.isArray(source.required_fixes ?? source.requiredFixes)
+    ? ((source.required_fixes ?? source.requiredFixes) as unknown[])
+    : [];
+  const rawSuggestedFixes = Array.isArray(source.suggested_fixes ?? source.suggestedFixes)
+    ? ((source.suggested_fixes ?? source.suggestedFixes) as unknown[])
+    : [];
+  const classificationKind = normalizeCompatibilityFixKind(source.classification ?? source.status);
+  const requiredFixes = rawRequiredFixes
+    .map((entry) => {
+      if (typeof entry === 'string') return entry.trim();
+      const fix = isRecord(entry) ? entry : {};
+      return asString(fix.code ?? fix.id ?? fix.kind ?? fix.title).trim();
+    })
+    .filter(Boolean);
+  const inferredKind =
+    classificationKind ??
+    rawSuggestedFixes
+      .map((entry) =>
+        normalizeCompatibilityFixKind(isRecord(entry) ? (entry.kind ?? entry.type) : entry)
+      )
+      .find((kind): kind is BravoCompatibilityFixKind => kind !== null) ??
+    rawRequiredFixes
+      .map((entry) =>
+        normalizeCompatibilityFixKind(isRecord(entry) ? (entry.kind ?? entry.type) : entry)
+      )
+      .find((kind): kind is BravoCompatibilityFixKind => kind !== null) ??
+    null;
+  const classification = normalizeCompatibilityClassification(
+    source.classification ?? source.status,
+    inferredKind
+  );
+  const defaultKind =
+    inferredKind ??
+    (classification === 'supported' || classification === 'unknown'
+      ? 'route'
+      : (classification.replace('_fix', '') as BravoCompatibilityFixKind));
+  const normalizedSuggestedFixes = rawSuggestedFixes
+    .map((entry) => normalizeCompatibilityFix(entry, defaultKind, reasons, targets))
+    .filter((fix): fix is BravoCompatibilityFix => fix !== null);
+  const normalizedRequiredFixes = rawRequiredFixes
+    .map((entry) => {
+      if (!isRecord(entry)) return null;
+      return normalizeCompatibilityFix(entry, defaultKind, reasons, targets);
+    })
+    .filter((fix): fix is BravoCompatibilityFix => fix !== null);
+  const fixes = [...normalizedSuggestedFixes, ...normalizedRequiredFixes].filter(
+    (fix, index, all) =>
+      all.findIndex(
+        (candidate) =>
+          candidate.code === fix.code &&
+          candidate.kind === fix.kind &&
+          candidate.title === fix.title &&
+          candidate.target === fix.target &&
+          candidate.snippet === fix.snippet
+      ) === index
+  );
+
+  const rawAccounts = source.available_accounts ?? source.availableAccounts;
+  const detected = normalizeCompatibilityDetected(source.detected);
+  return {
+    provider:
+      asString(source.provider).trim().toLowerCase() ||
+      asString(source.vendor).trim().toLowerCase() ||
+      'unknown',
+    model,
+    displayName: asString(source.display_name ?? source.displayName).trim() || model,
+    classification,
+    baseModel: asString(source.base_model ?? source.baseModel).trim(),
+    routeIds: asStringArray(source.route_ids ?? source.routeIds ?? source.routes),
+    availableAccounts:
+      rawAccounts === null || rawAccounts === undefined || rawAccounts === ''
+        ? null
+        : Array.isArray(rawAccounts)
+          ? rawAccounts.length
+          : Math.max(0, asFiniteNumber(rawAccounts)),
+    catalog: asNullableBoolean(source.catalog ?? detected.catalog),
+    available: asNullableBoolean(source.available ?? detected.available),
+    detected,
+    reasons,
+    targets,
+    requiredFixes,
+    fixes,
+  };
+};
+
+export const normalizeBravoCompatibilityResponse = (value: unknown): BravoCompatibilityResponse => {
+  const source = isRecord(value) ? value : {};
+  const summary = isRecord(source.summary) ? source.summary : {};
+  const models = Array.isArray(source.models)
+    ? source.models
+        .map(normalizeCompatibilityModel)
+        .filter((model): model is BravoCompatibilityModel => model !== null)
+    : [];
+  const classifiedCount = (classification: BravoCompatibilityClassification): number =>
+    models.filter((model) => model.classification === classification).length;
+  const supported = asFiniteNumber(
+    summary.supported ?? summary.compatible,
+    classifiedCount('supported')
+  );
+  const total = asFiniteNumber(summary.total, models.length);
+  return {
+    schemaVersion: asFiniteNumber(source.schema_version ?? source.schemaVersion, 1),
+    generatedAt: asString(source.generated_at ?? source.generatedAt).trim(),
+    failClosed: asNullableBoolean(source.fail_closed ?? source.failClosed),
+    summary: {
+      total,
+      supported,
+      codeFix: asFiniteNumber(
+        summary.code_fix ?? summary.codeFix ?? summary.needs_code ?? summary.needsCode,
+        classifiedCount('code_fix')
+      ),
+      yamlFix: asFiniteNumber(
+        summary.yaml_fix ?? summary.yamlFix ?? summary.needs_yaml ?? summary.needsYaml,
+        classifiedCount('yaml_fix')
+      ),
+      routeFix: asFiniteNumber(
+        summary.route_fix ?? summary.routeFix ?? summary.needs_route ?? summary.needsRoute,
+        classifiedCount('route_fix')
+      ),
+      actionRequired: asFiniteNumber(
+        summary.action_required ?? summary.actionRequired,
+        Math.max(0, total - supported)
+      ),
+    },
+    models,
+  };
+};
+
 export const normalizeBravoProjectsResponse = (value: unknown): BravoProjectsResponse => {
   const source = isRecord(value) ? value : {};
   return {
@@ -864,6 +1215,10 @@ export const bravoApi = {
 
   async getRoutes(): Promise<BravoRoutesResponse> {
     return normalizeBravoRoutesResponse(await apiClient.get('/bravo/routes'));
+  },
+
+  async getCompatibility(): Promise<BravoCompatibilityResponse> {
+    return normalizeBravoCompatibilityResponse(await apiClient.get('/bravo/compatibility'));
   },
 
   async previewRoute(route: BravoRoute): Promise<BravoRoutesResponse> {

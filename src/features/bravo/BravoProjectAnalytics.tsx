@@ -313,6 +313,9 @@ export function BravoProjectAnalytics({ project, subscriptions }: BravoProjectAn
   const breakdownPartial =
     Boolean(state.current?.breakdownCoverageFrom) &&
     new Date(range.from).getTime() < new Date(state.current?.breakdownCoverageFrom ?? '').getTime();
+  const summaryPartial =
+    Boolean(state.current?.coverageFrom) &&
+    new Date(range.from).getTime() < new Date(state.current?.coverageFrom ?? '').getTime();
   const empty = state.current ? analyticsUsageIsEmpty(state.current.summary) : false;
 
   return (
@@ -459,6 +462,17 @@ export function BravoProjectAnalytics({ project, subscriptions }: BravoProjectAn
                 </span>
               </div>
 
+              {summaryPartial ? (
+                <div className={styles.coverageNote}>
+                  <IconInfo size={16} />
+                  <span>
+                    {t('bravo.analytics.summary_coverage', {
+                      date: formatDate(state.current.coverageFrom, locale),
+                    })}
+                  </span>
+                </div>
+              ) : null}
+
               {breakdownPartial ? (
                 <div className={styles.coverageNote}>
                   <IconInfo size={16} />
@@ -578,7 +592,15 @@ export function BravoProjectAnalytics({ project, subscriptions }: BravoProjectAn
                               <div className={styles.modelRows}>
                                 {group.models.length ? (
                                   group.models.map((row) => (
-                                    <div key={`${row.provider}:${row.model}`}>
+                                    <div
+                                      key={[
+                                        row.projectId,
+                                        row.subscriptionId,
+                                        row.provider,
+                                        row.logicalModel,
+                                        row.model,
+                                      ].join(':')}
+                                    >
                                       <span>
                                         <strong>
                                           {row.logicalModel
@@ -587,9 +609,20 @@ export function BravoProjectAnalytics({ project, subscriptions }: BravoProjectAn
                                         </strong>
                                         <small>{providerLabel(row.provider)}</small>
                                       </span>
-                                      <span>{formatNumber(row.usage.requests, locale)}</span>
-                                      <span>{formatNumber(row.usage.totalTokens, locale)}</span>
-                                      <span>{formatNumber(row.usage.failures, locale)}</span>
+                                      <span className={styles.modelMetric}>
+                                        <small>{t('bravo.analytics.metrics.requests')}</small>
+                                        <strong>{formatNumber(row.usage.requests, locale)}</strong>
+                                      </span>
+                                      <span className={styles.modelMetric}>
+                                        <small>{t('bravo.analytics.metrics.tokens')}</small>
+                                        <strong>
+                                          {formatNumber(row.usage.totalTokens, locale)}
+                                        </strong>
+                                      </span>
+                                      <span className={styles.modelMetric}>
+                                        <small>{t('bravo.analytics.metrics.failures')}</small>
+                                        <strong>{formatNumber(row.usage.failures, locale)}</strong>
+                                      </span>
                                     </div>
                                   ))
                                 ) : (

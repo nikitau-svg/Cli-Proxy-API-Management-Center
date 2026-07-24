@@ -17,24 +17,30 @@ export interface BravoAnalyticsRange {
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
+const ceilToBucketBoundary = (value: number, bucketSize: number): number =>
+  Math.ceil(value / bucketSize) * bucketSize;
+
 export const resolveBravoAnalyticsRange = (
   preset: Exclude<BravoAnalyticsPreset, 'custom'>,
   now = new Date()
 ): BravoAnalyticsRange => {
-  const durations: Record<Exclude<BravoAnalyticsPreset, 'custom'>, number> = {
-    '24h': DAY_MS,
-    '7d': 7 * DAY_MS,
-    '30d': 30 * DAY_MS,
-    '90d': 90 * DAY_MS,
+  const bucketCounts: Record<Exclude<BravoAnalyticsPreset, 'custom'>, number> = {
+    '24h': 24,
+    '7d': 7,
+    '30d': 30,
+    '90d': 90,
   };
-  const duration = durations[preset];
+  const interval = preset === '24h' ? 'hour' : 'day';
+  const bucketSize = interval === 'hour' ? HOUR_MS : DAY_MS;
+  const bucketCount = bucketCounts[preset];
   const toMs = now.getTime();
-  const fromMs = toMs - duration;
+  const fromMs = ceilToBucketBoundary(toMs, bucketSize) - bucketCount * bucketSize;
+  const comparisonDuration = bucketCount * bucketSize;
   return {
     from: new Date(fromMs).toISOString(),
     to: new Date(toMs).toISOString(),
-    interval: preset === '24h' ? 'hour' : 'day',
-    previousFrom: new Date(fromMs - duration).toISOString(),
+    interval,
+    previousFrom: new Date(fromMs - comparisonDuration).toISOString(),
     previousTo: new Date(fromMs).toISOString(),
   };
 };
@@ -45,16 +51,20 @@ export const resolveBravoCustomRange = (
   now = new Date()
 ): BravoAnalyticsRange | null => {
   const fromMs = new Date(`${fromDate}T00:00:00.000Z`).getTime();
-  const requestedToMs = new Date(`${toDate}T23:59:59.999Z`).getTime();
+  const requestedToMs = new Date(`${toDate}T00:00:00.000Z`).getTime() + DAY_MS;
   const toMs = Math.min(requestedToMs, now.getTime());
-  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || fromMs > toMs) return null;
-  const duration = toMs - fromMs + 1;
+  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || fromMs >= toMs) return null;
+  const requestedDuration = requestedToMs - fromMs;
+  const interval = requestedDuration <= 2 * DAY_MS ? 'hour' : 'day';
+  const bucketSize = interval === 'hour' ? HOUR_MS : DAY_MS;
+  const bucketCount = Math.ceil((toMs - fromMs) / bucketSize);
+  const comparisonDuration = bucketCount * bucketSize;
   return {
     from: new Date(fromMs).toISOString(),
     to: new Date(toMs).toISOString(),
-    interval: duration <= 2 * DAY_MS ? 'hour' : 'day',
-    previousFrom: new Date(fromMs - duration).toISOString(),
-    previousTo: new Date(fromMs - 1).toISOString(),
+    interval,
+    previousFrom: new Date(fromMs - comparisonDuration).toISOString(),
+    previousTo: new Date(fromMs).toISOString(),
   };
 };
 
@@ -73,7 +83,7 @@ export const analyticsSeriesToCSV = (series: BravoAnalyticsPoint[]): string => {
   const header = [
     'start',
     'end',
-    'requests',
+    'provider_attempts',
     'failures',
     'input_tokens',
     'output_tokens',

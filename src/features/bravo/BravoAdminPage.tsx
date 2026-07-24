@@ -35,6 +35,7 @@ import { useAuthStore, useNotificationStore } from '@/stores';
 import { copyToClipboard } from '@/utils/clipboard';
 import { getErrorMessage } from '@/utils/helpers';
 import { formatBravoQuotaReset } from './bravoQuotaPresentation';
+import { BravoCompatibilityPanel } from './BravoCompatibilityPanel';
 import { BravoProjectAnalytics } from './BravoProjectAnalytics';
 import { BravoRouteEditor } from './BravoRouteEditor';
 import styles from './BravoAdminPage.module.scss';
@@ -740,6 +741,8 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
         <span>{t('bravo.effort.description')}</span>
         <code>/effort xhigh</code>
       </div>
+
+      <BravoCompatibilityPanel />
 
       {error ? (
         <div className={styles.error} role="alert">
