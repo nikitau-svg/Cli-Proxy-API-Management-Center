@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { BravoAdminPage } from '@/features/bravo/BravoAdminPage';
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { pluginsApi } from '@/services/api';
 import { useAuthStore } from '@/stores';
@@ -86,9 +87,10 @@ export function PluginResourcePage() {
   }, [data?.plugins, menuIndex, pluginID]);
 
   const iframeSrc = resource ? resolvePluginAssetURL(resource.menu.path, apiBase) : '';
+  const isBravoAdmin = pluginID === 'bravo';
 
   return (
-    <div className={styles.page}>
+    <div className={isBravoAdmin ? styles.bravoPage : styles.page}>
       {loading ? (
         <div className={styles.stateShell}>
           <div className={styles.statusPanel}>{t('common.loading')}</div>
@@ -104,6 +106,8 @@ export function PluginResourcePage() {
             description={t('plugin_resource.not_found_desc')}
           />
         </div>
+      ) : isBravoAdmin ? (
+        <BravoAdminPage dashboardURL={iframeSrc} />
       ) : !iframeSrc ? (
         <div className={styles.stateShell}>
           <EmptyState
