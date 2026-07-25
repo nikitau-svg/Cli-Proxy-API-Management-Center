@@ -1,0 +1,63 @@
+name: Bootstrap Bravo 0.7 UI patch
+
+on:
+  push:
+    branches:
+      - fix/bravo-0.7-spark-quota-ui
+    paths:
+      - .github/workflows/bootstrap-bravo-0.7-ui.yml
+      - .github/bravo-bootstrap/ui-patch.zip.b64
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bootstrap-bravo-0.7-ui
+  cancel-in-progress: false
+
+jobs:
+  apply-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out the feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/bravo-0.7-spark-quota-ui
+          fetch-depth: 0
+
+      - name: Decode and apply reviewed patchers
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          base64 --decode .github/bravo-bootstrap/ui-patch.zip.b64 > /tmp/bravo-ui-patch.zip
+          mkdir -p /tmp/bravo-ui-patch
+          unzip -q /tmp/bravo-ui-patch.zip -d /tmp/bravo-ui-patch
+          python3 /tmp/bravo-ui-patch/apply_frontend.py "$GITHUB_WORKSPACE" --allow-non-exact-base
+          python3 /tmp/bravo-ui-patch/apply_frontend_hardening.py "$GITHUB_WORKSPACE" --allow-non-exact-base
+          python3 /tmp/bravo-ui-patch/apply_frontend_summary.py "$GITHUB_WORKSPACE" --allow-non-exact-base
+          git diff --check
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Verify tests, lint, types and production build
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bun install --frozen-lockfile
+          bun run verify
+
+      - name: Commit verified source changes
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -u
+          git diff --cached --quiet && { echo "Patch produced no tracked source changes" >&2; exit 1; }
+          git commit -m "feat(bravo): expose Spark and independent quota state"
+          git push origin HEAD:fix/bravo-0.7-spark-quota-ui
