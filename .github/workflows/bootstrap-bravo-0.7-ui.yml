@@ -38,7 +38,7 @@ jobs:
         run: |
           set -uo pipefail
           set +e
-          {
+          bash -c '
             set -Eeuo pipefail
             base64 --decode .github/bravo-bootstrap/ui-patch.zip.b64 > /tmp/bravo-ui-patch.zip
             mkdir -p /tmp/bravo-ui-patch
@@ -47,7 +47,7 @@ jobs:
             python3 /tmp/bravo-ui-patch/apply_frontend_hardening.py "$GITHUB_WORKSPACE" --allow-non-exact-base
             python3 /tmp/bravo-ui-patch/apply_frontend_summary.py "$GITHUB_WORKSPACE" --allow-non-exact-base
             git diff --check
-          } > /tmp/bravo-ui-bootstrap.log 2>&1
+          ' > /tmp/bravo-ui-bootstrap.log 2>&1
           rc=$?
           cat /tmp/bravo-ui-bootstrap.log
           if [ "$rc" -ne 0 ]; then
