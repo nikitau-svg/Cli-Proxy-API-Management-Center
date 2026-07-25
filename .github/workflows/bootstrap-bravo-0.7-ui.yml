@@ -36,14 +36,31 @@ jobs:
       - name: Decode and apply reviewed patchers
         shell: bash
         run: |
-          set -Eeuo pipefail
-          base64 --decode .github/bravo-bootstrap/ui-patch.zip.b64 > /tmp/bravo-ui-patch.zip
-          mkdir -p /tmp/bravo-ui-patch
-          unzip -q /tmp/bravo-ui-patch.zip -d /tmp/bravo-ui-patch
-          python3 /tmp/bravo-ui-patch/apply_frontend.py "$GITHUB_WORKSPACE" --allow-non-exact-base
-          python3 /tmp/bravo-ui-patch/apply_frontend_hardening.py "$GITHUB_WORKSPACE" --allow-non-exact-base
-          python3 /tmp/bravo-ui-patch/apply_frontend_summary.py "$GITHUB_WORKSPACE" --allow-non-exact-base
-          git diff --check
+          set -uo pipefail
+          set +e
+          {
+            set -Eeuo pipefail
+            base64 --decode .github/bravo-bootstrap/ui-patch.zip.b64 > /tmp/bravo-ui-patch.zip
+            mkdir -p /tmp/bravo-ui-patch
+            unzip -q /tmp/bravo-ui-patch.zip -d /tmp/bravo-ui-patch
+            python3 /tmp/bravo-ui-patch/apply_frontend.py "$GITHUB_WORKSPACE" --allow-non-exact-base
+            python3 /tmp/bravo-ui-patch/apply_frontend_hardening.py "$GITHUB_WORKSPACE" --allow-non-exact-base
+            python3 /tmp/bravo-ui-patch/apply_frontend_summary.py "$GITHUB_WORKSPACE" --allow-non-exact-base
+            git diff --check
+          } > /tmp/bravo-ui-bootstrap.log 2>&1
+          rc=$?
+          cat /tmp/bravo-ui-bootstrap.log
+          if [ "$rc" -ne 0 ]; then
+            git reset --hard HEAD
+            git clean -fd
+            cp /tmp/bravo-ui-bootstrap.log .github/bravo-bootstrap/ui-bootstrap-error.log
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .github/bravo-bootstrap/ui-bootstrap-error.log
+            git commit -m "ci: record Bravo UI bootstrap failure"
+            git push origin HEAD:fix/bravo-0.7-spark-quota-ui
+            exit "$rc"
+          fi
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
@@ -64,6 +81,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -u
+          git add src/features/bravo/bravoQuotaPresentation.ts tests/bravoQuotaPresentation.test.ts 2>/dev/null || true
           git diff --cached --quiet && { echo "Patch produced no tracked source changes" >&2; exit 1; }
           git commit -m "feat(bravo): expose Spark and independent quota state"
           git push origin HEAD:fix/bravo-0.7-spark-quota-ui
