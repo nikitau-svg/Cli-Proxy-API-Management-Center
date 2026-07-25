@@ -7,6 +7,12 @@ on:
     paths:
       - .github/workflows/bootstrap-bravo-0.7-ui.yml
       - .github/bravo-bootstrap/ui-patch.zip.b64
+  pull_request:
+    branches:
+      - agent/bravo-0.6-production-ui
+    paths:
+      - .github/workflows/bootstrap-bravo-0.7-ui.yml
+      - .github/bravo-bootstrap/ui-patch.zip.b64
 
 permissions:
   contents: write
