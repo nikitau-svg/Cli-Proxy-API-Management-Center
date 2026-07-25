@@ -6,13 +6,13 @@ on:
       - fix/bravo-0.7-spark-quota-ui
     paths:
       - .github/workflows/bootstrap-bravo-0.7-ui.yml
-      - .github/bravo-bootstrap/ui-patch.zip.b64
+      - .github/bravo-bootstrap/ui-patch.part-*.b64
   pull_request:
     branches:
       - agent/bravo-0.6-production-ui
     paths:
       - .github/workflows/bootstrap-bravo-0.7-ui.yml
-      - .github/bravo-bootstrap/ui-patch.zip.b64
+      - .github/bravo-bootstrap/ui-patch.part-*.b64
 
 permissions:
   contents: write
@@ -40,7 +40,12 @@ jobs:
           set +e
           bash -c '
             set -Eeuo pipefail
-            base64 --decode .github/bravo-bootstrap/ui-patch.zip.b64 > /tmp/bravo-ui-patch.zip
+            cat .github/bravo-bootstrap/ui-patch.part-*.b64 > /tmp/bravo-ui-patch.b64
+            wc -c /tmp/bravo-ui-patch.b64
+            sha256sum /tmp/bravo-ui-patch.b64
+            base64 --decode /tmp/bravo-ui-patch.b64 > /tmp/bravo-ui-patch.zip
+            sha256sum /tmp/bravo-ui-patch.zip
+            test "$(sha256sum /tmp/bravo-ui-patch.zip | cut -d" " -f1)" = "22498ae3544da1041020653044597dc8a31d40712cdb433d0f5e1bc38a361bd9"
             mkdir -p /tmp/bravo-ui-patch
             unzip -q /tmp/bravo-ui-patch.zip -d /tmp/bravo-ui-patch
             python3 /tmp/bravo-ui-patch/apply_frontend.py "$GITHUB_WORKSPACE" --allow-non-exact-base
@@ -57,8 +62,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: bravo-ui-bootstrap-diagnostics
-          path: /tmp/bravo-ui-bootstrap.log
-          if-no-files-found: error
+          path: |
+            /tmp/bravo-ui-bootstrap.log
+            /tmp/bravo-ui-patch.b64
+            .github/bravo-bootstrap/ui-patch.part-*.b64
+          if-no-files-found: warn
           retention-days: 1
 
       - name: Install Bun
