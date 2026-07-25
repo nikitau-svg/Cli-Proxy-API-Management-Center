@@ -1738,7 +1738,8 @@
         "disabled": "Отключена",
         "unavailable": "Недоступна",
         "error": "Ошибка",
-        "unknown": "Неизвестно"
+        "unknown": "Неизвестно",
+        "partial": "Частично доступна"
       }
     },
     "analytics": {
@@ -1868,7 +1869,14 @@
         "quota_unknown_allowed": "Неизвестная квота разрешена политикой",
         "quota_unknown": "Защищена: квота неизвестна",
         "quota_error": "Защищена: ошибка квоты провайдера"
-      }
+      },
+      "model_limits": "Отдельные лимиты моделей",
+      "model_limits_hint": "Независимый пул не расходует общий лимит Codex и не блокируется им.",
+      "independent": "Отдельный пул",
+      "spark": "GPT-5.3 Codex Spark",
+      "standard_short": "Codex",
+      "spark_short": "Spark",
+      "stale_confirmed_age": "Сохранены последние подтверждённые значения · обновление не удалось {{age}}"
     },
     "tariffs": {
       "title": "Резервы тарифов",

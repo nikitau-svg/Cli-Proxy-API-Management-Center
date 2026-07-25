@@ -2,7 +2,9 @@ import { describe, expect, test } from 'bun:test';
 import en from '../src/i18n/locales/en.json';
 import ru from '../src/i18n/locales/ru.json';
 import {
+  effectiveBravoSubscriptionHealth,
   formatBravoQuotaReset,
+  summarizeBravoQuotaRouting,
   type BravoQuotaResetCopy,
 } from '../src/features/bravo/bravoQuotaPresentation';
 import type { BravoQuotaWindow } from '../src/services/api/bravo';
@@ -17,6 +19,7 @@ const windowWith = (
   resetMode,
   eligible: null,
   reason: '',
+  independent: false,
 });
 
 const copyFrom = (quota: typeof en.bravo.quota): BravoQuotaResetCopy => ({
@@ -61,5 +64,65 @@ describe('Bravo quota reset presentation', () => {
     expect(sentinel).toBe(en.bravo.quota.reset_unknown);
     expect(sentinel).not.toContain('0001');
     expect(missing).toBe(en.bravo.quota.reset_unknown);
+  });
+});
+
+
+
+describe('Bravo quota routing summary', () => {
+  const routingWindow = (remainingPercent: number | null, eligible: boolean | null): BravoQuotaWindow => ({
+    usedPercent: remainingPercent === null ? null : 100 - remainingPercent,
+    remainingPercent,
+    resetAt: '2026-07-30T08:00:00Z',
+    resetMode: 'scheduled',
+    eligible,
+    reason: eligible === false ? 'reserve_floor' : 'ready',
+    independent: false,
+  });
+
+  test('keeps the account routable when standard Codex is protected but Spark is ready', () => {
+    expect(
+      summarizeBravoQuotaRouting(
+        'confirmed',
+        routingWindow(100, true),
+        routingWindow(0, false),
+        [{ session: routingWindow(100, true), weekly: routingWindow(72, true) }]
+      )
+    ).toBe('ready');
+  });
+
+  test('reports unknown when no domain is ready and an independent bucket is incomplete', () => {
+    expect(
+      summarizeBravoQuotaRouting(
+        'confirmed',
+        routingWindow(100, true),
+        routingWindow(0, false),
+        [{ session: routingWindow(null, null) }]
+      )
+    ).toBe('unknown');
+  });
+
+  test('reports protected only when every available domain is confirmed and protected', () => {
+    expect(
+      summarizeBravoQuotaRouting(
+        'confirmed',
+        routingWindow(100, true),
+        routingWindow(0, false),
+        [{ session: routingWindow(0, false), weekly: routingWindow(0, false) }]
+      )
+    ).toBe('protected');
+  });
+
+  test('marks an account partially available when standard cooldown coexists with live Spark', () => {
+    expect(
+      effectiveBravoSubscriptionHealth('cooldown', 'confirmed', [
+        { session: routingWindow(100, true), weekly: routingWindow(72, true) },
+      ])
+    ).toBe('partial');
+    expect(
+      effectiveBravoSubscriptionHealth('unavailable', 'confirmed', [
+        { session: routingWindow(100, true), weekly: routingWindow(72, true) },
+      ])
+    ).toBe('unavailable');
   });
 });

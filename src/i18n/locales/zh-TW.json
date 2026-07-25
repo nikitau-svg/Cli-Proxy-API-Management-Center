@@ -1786,7 +1786,8 @@
         "disabled": "Disabled",
         "unavailable": "Unavailable",
         "error": "Error",
-        "unknown": "Unknown"
+        "unknown": "Unknown",
+        "partial": "部分可用"
       }
     },
     "analytics": {
@@ -1916,7 +1917,14 @@
         "quota_unknown_allowed": "Unknown quota allowed by policy",
         "quota_unknown": "Protected: quota unknown",
         "quota_error": "Protected: provider quota error"
-      }
+      },
+      "model_limits": "模型獨立限額",
+      "model_limits_hint": "獨立額度池不會消耗或繼承 Codex 帳戶通用限額。",
+      "independent": "獨立額度池",
+      "spark": "GPT-5.3 Codex Spark",
+      "standard_short": "Codex",
+      "spark_short": "Spark",
+      "stale_confirmed_age": "保留最近一次已確認資料 · 更新失敗 {{age}}"
     },
     "tariffs": {
       "title": "Tariff reserve policy",

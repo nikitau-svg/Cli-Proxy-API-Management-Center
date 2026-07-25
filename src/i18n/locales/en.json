@@ -1760,7 +1760,8 @@
         "disabled": "Disabled",
         "unavailable": "Unavailable",
         "error": "Error",
-        "unknown": "Unknown"
+        "unknown": "Unknown",
+        "partial": "Partially available"
       }
     },
     "analytics": {
@@ -1890,7 +1891,14 @@
         "quota_unknown_allowed": "Unknown quota allowed by policy",
         "quota_unknown": "Protected: quota unknown",
         "quota_error": "Protected: provider quota error"
-      }
+      },
+      "model_limits": "Model-specific limits",
+      "model_limits_hint": "Independent buckets do not consume or inherit the account-wide Codex limit.",
+      "independent": "Independent bucket",
+      "spark": "GPT-5.3 Codex Spark",
+      "standard_short": "Codex",
+      "spark_short": "Spark",
+      "stale_confirmed_age": "Last confirmed values retained · refresh failed {{age}}"
     },
     "tariffs": {
       "title": "Tariff reserve policy",

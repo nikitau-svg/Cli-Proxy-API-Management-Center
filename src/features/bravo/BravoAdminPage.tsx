@@ -34,7 +34,11 @@ import {
 import { useAuthStore, useNotificationStore } from '@/stores';
 import { copyToClipboard } from '@/utils/clipboard';
 import { getErrorMessage } from '@/utils/helpers';
-import { formatBravoQuotaReset } from './bravoQuotaPresentation';
+import {
+  effectiveBravoSubscriptionHealth,
+  formatBravoQuotaReset,
+  summarizeBravoQuotaRouting,
+} from './bravoQuotaPresentation';
 import { BravoCompatibilityPanel } from './BravoCompatibilityPanel';
 import { BravoProjectAnalytics } from './BravoProjectAnalytics';
 import { BravoRouteEditor } from './BravoRouteEditor';
@@ -66,6 +70,13 @@ interface PrimaryGroup {
   id: string;
   label: string;
   subscriptions: BravoSubscription[];
+}
+
+interface ModelQuotaGroup {
+  model: string;
+  independent: boolean;
+  session?: BravoQuotaWindow;
+  weekly?: BravoQuotaWindow;
 }
 
 interface BravoAdminPageProps {
@@ -125,6 +136,34 @@ const subscriptionWorkspace = (subscription: BravoSubscription): string =>
 
 const subscriptionLabel = (subscription: BravoSubscription): string =>
   `${providerName(subscription.provider)} · ${subscriptionWorkspace(subscription)}`;
+
+
+const groupModelQuotaWindows = (subscription: BravoSubscription): ModelQuotaGroup[] => {
+  const groups = new Map<string, ModelQuotaGroup>();
+  const ensure = (model: string, independent: boolean): ModelQuotaGroup => {
+    const key = model.trim().toLowerCase();
+    const existing = groups.get(key);
+    if (existing) {
+      existing.independent = existing.independent || independent;
+      return existing;
+    }
+    const created: ModelQuotaGroup = { model, independent };
+    groups.set(key, created);
+    return created;
+  };
+  subscription.quota.modelSession.forEach((window) => {
+    if (!window.model) return;
+    ensure(window.model, window.independent).session = window;
+  });
+  subscription.quota.modelWeekly.forEach((window) => {
+    if (!window.model) return;
+    ensure(window.model, window.independent).weekly = window;
+  });
+  return [...groups.values()].sort((left, right) => left.model.localeCompare(right.model));
+};
+
+const modelQuotaDisplayName = (model: string, t: TFunction): string =>
+  model.toLowerCase().includes('spark') ? t('bravo.quota.spark') : model;
 
 const clampPercent = (value: number): number => Math.max(0, Math.min(100, value));
 
@@ -316,18 +355,17 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
     let protectedCount = 0;
     let unknownCount = 0;
     data.subscriptions.forEach((subscription) => {
-      if (
-        subscription.quota.confidence !== 'confirmed' ||
-        subscription.quota.session.remainingPercent === null ||
-        subscription.quota.weekly.remainingPercent === null
-      ) {
-        unknownCount += 1;
-      } else if (
-        subscription.quota.session.eligible === false ||
-        subscription.quota.weekly.eligible === false
-      ) {
-        protectedCount += 1;
-      }
+      const independentDomains = groupModelQuotaWindows(subscription)
+        .filter((group) => group.independent)
+        .map((group) => ({ session: group.session, weekly: group.weekly }));
+      const state = summarizeBravoQuotaRouting(
+        subscription.quota.confidence,
+        subscription.quota.session,
+        subscription.quota.weekly,
+        independentDomains
+      );
+      if (state === 'protected') protectedCount += 1;
+      if (state === 'unknown') unknownCount += 1;
     });
     return { protectedCount, unknownCount };
   }, [data.subscriptions]);
@@ -794,11 +832,26 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                   tariffByID.get(subscription.effectiveTariff) ??
                   tariffByID.get(subscription.tariff);
                 const confirmed = subscription.quota.confidence === 'confirmed';
-                const age = formatAge(subscription.quota.observedAt, t);
+                const stale = confirmed && subscription.quota.stale;
+                const age = formatAge(
+                  stale
+                    ? subscription.quota.lastAttemptAt || subscription.quota.observedAt
+                    : subscription.quota.observedAt,
+                  t
+                );
                 const owners = subscriptionOwnerIDs(subscription)
                   .map((id) => projectByID.get(id)?.name)
                   .filter((name): name is string => Boolean(name));
                 const busy = mutatingSubscription === subscription.authIndex;
+                const modelQuotas = groupModelQuotaWindows(subscription);
+                const sparkQuota = modelQuotas.find(
+                  (group) => group.independent && group.model.toLowerCase().includes('spark')
+                );
+                const effectiveHealth = effectiveBravoSubscriptionHealth(
+                  subscription.health,
+                  subscription.quota.confidence,
+                  sparkQuota ? [{ session: sparkQuota.session, weekly: sparkQuota.weekly }] : []
+                );
                 return (
                   <details className={styles.subscription} key={subscription.authIndex}>
                     <summary>
@@ -815,11 +868,11 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                         </span>
                         <span
                           className={`${styles.healthBadge} ${
-                            subscription.health === 'ready' ? styles.healthReady : ''
+                            effectiveHealth === 'ready' ? styles.healthReady : ''
                           }`}
                         >
-                          {t(`bravo.subscriptions.health.${subscription.health}`, {
-                            defaultValue: subscription.health,
+                          {t(`bravo.subscriptions.health.${effectiveHealth}`, {
+                            defaultValue: effectiveHealth,
                           })}
                         </span>
                       </span>
@@ -830,17 +883,33 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                       </span>
                       <span className={styles.compactQuotas}>
                         <span>
-                          {t('bravo.quota.session_short')}:{' '}
+                          {t('bravo.quota.standard_short')} {t('bravo.quota.session_short')}:{' '}
                           {confirmed && subscription.quota.session.remainingPercent !== null
                             ? `${Math.round(subscription.quota.session.remainingPercent)}%`
                             : t('bravo.quota.unknown')}
                         </span>
                         <span>
-                          {t('bravo.quota.weekly_short')}:{' '}
+                          {t('bravo.quota.standard_short')} {t('bravo.quota.weekly_short')}:{' '}
                           {confirmed && subscription.quota.weekly.remainingPercent !== null
                             ? `${Math.round(subscription.quota.weekly.remainingPercent)}%`
                             : t('bravo.quota.unknown')}
                         </span>
+                        {sparkQuota?.session ? (
+                          <span>
+                            {t('bravo.quota.spark_short')} {t('bravo.quota.session_short')}:{' '}
+                            {confirmed && sparkQuota.session.remainingPercent !== null
+                              ? `${Math.round(sparkQuota.session.remainingPercent)}%`
+                              : t('bravo.quota.unknown')}
+                          </span>
+                        ) : null}
+                        {sparkQuota?.weekly ? (
+                          <span>
+                            {t('bravo.quota.spark_short')} {t('bravo.quota.weekly_short')}:{' '}
+                            {confirmed && sparkQuota.weekly.remainingPercent !== null
+                              ? `${Math.round(sparkQuota.weekly.remainingPercent)}%`
+                              : t('bravo.quota.unknown')}
+                          </span>
+                        ) : null}
                       </span>
                       <span className={styles.chevron} aria-hidden="true">
                         ›
@@ -848,16 +917,24 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                     </summary>
                     <div className={styles.subscriptionBody}>
                       <div className={styles.confirmationRow}>
-                        <span className={confirmed ? styles.confirmedBadge : styles.unknownBadge}>
-                          {confirmed ? (
+                        <span
+                          className={
+                            confirmed && !stale ? styles.confirmedBadge : styles.unknownBadge
+                          }
+                        >
+                          {confirmed && !stale ? (
                             <IconCheckCircle2 size={15} />
                           ) : (
                             <IconAlertTriangle size={15} />
                           )}
                           {confirmed
-                            ? t('bravo.quota.confirmed_age', {
-                                age: age || t('bravo.quota.age_unknown'),
-                              })
+                            ? stale
+                              ? t('bravo.quota.stale_confirmed_age', {
+                                  age: age || t('bravo.quota.age_unknown'),
+                                })
+                              : t('bravo.quota.confirmed_age', {
+                                  age: age || t('bravo.quota.age_unknown'),
+                                })
                             : t('bravo.quota.not_confirmed')}
                         </span>
                         {subscription.quota.error ? (
@@ -883,6 +960,52 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                           t={t}
                         />
                       </div>
+
+
+                      {modelQuotas.length > 0 ? (
+                        <div className={styles.modelQuotaSection}>
+                          <div className={styles.controlIntro}>
+                            <strong>{t('bravo.quota.model_limits')}</strong>
+                            <span>{t('bravo.quota.model_limits_hint')}</span>
+                          </div>
+                          <div className={styles.modelQuotaList}>
+                            {modelQuotas.map((group) => (
+                              <div className={styles.modelQuotaCard} key={group.model}>
+                                <div className={styles.modelQuotaHeading}>
+                                  <strong>{modelQuotaDisplayName(group.model, t)}</strong>
+                                  {group.independent ? (
+                                    <span className={styles.independentBadge}>
+                                      {t('bravo.quota.independent')}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <div className={styles.quotaGrid}>
+                                  {group.session ? (
+                                    <QuotaMeter
+                                      label={t('bravo.quota.session')}
+                                      window={group.session}
+                                      confirmed={confirmed}
+                                      floor={tariff?.sessionFloorPercent ?? null}
+                                      locale={locale}
+                                      t={t}
+                                    />
+                                  ) : null}
+                                  {group.weekly ? (
+                                    <QuotaMeter
+                                      label={t('bravo.quota.weekly')}
+                                      window={group.weekly}
+                                      confirmed={confirmed}
+                                      floor={tariff?.weeklyFloorPercent ?? null}
+                                      locale={locale}
+                                      t={t}
+                                    />
+                                  ) : null}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
 
                       <div className={styles.accountControls}>
                         <div className={styles.controlIntro}>

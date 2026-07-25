@@ -46,6 +46,7 @@ export interface BravoQuotaWindow {
   resetMode: BravoQuotaResetMode | null;
   eligible: boolean | null;
   reason: string;
+  independent: boolean;
 }
 
 export interface BravoModelQuotaWindow extends BravoQuotaWindow {
@@ -55,9 +56,12 @@ export interface BravoModelQuotaWindow extends BravoQuotaWindow {
 export interface BravoQuota {
   confidence: string;
   observedAt: string;
+  lastAttemptAt: string;
+  stale: boolean;
   error: string;
   session: BravoQuotaWindow;
   weekly: BravoQuotaWindow;
+  modelSession: BravoModelQuotaWindow[];
   modelWeekly: BravoModelQuotaWindow[];
 }
 
@@ -468,12 +472,23 @@ const normalizeQuotaWindow = (value: unknown): BravoQuotaWindow => {
     resetMode,
     eligible: asNullableBoolean(source.eligible),
     reason: asString(source.reason).trim(),
+    independent: source.independent === true,
   };
 };
 
+const normalizeModelQuotaWindows = (value: unknown): BravoModelQuotaWindow[] =>
+  Array.isArray(value)
+    ? value.map((entry) => {
+        const item = isRecord(entry) ? entry : {};
+        return {
+          model: asString(item.model).trim(),
+          ...normalizeQuotaWindow(item),
+        };
+      })
+    : [];
+
 const normalizeQuota = (value: unknown): BravoQuota => {
   const source = isRecord(value) ? value : {};
-  const rawModelWeekly = source.model_weekly ?? source.modelWeekly;
   return {
     confidence:
       asString(source.confidence ?? source.status)
@@ -482,18 +497,13 @@ const normalizeQuota = (value: unknown): BravoQuota => {
     observedAt: asString(
       source.observed_at ?? source.observedAt ?? source.refreshed_at ?? source.refreshedAt
     ).trim(),
+    lastAttemptAt: asString(source.last_attempt_at ?? source.lastAttemptAt).trim(),
+    stale: source.stale === true,
     error: asString(source.error).trim(),
     session: normalizeQuotaWindow(source.session),
     weekly: normalizeQuotaWindow(source.weekly),
-    modelWeekly: Array.isArray(rawModelWeekly)
-      ? rawModelWeekly.map((entry) => {
-          const item = isRecord(entry) ? entry : {};
-          return {
-            model: asString(item.model).trim(),
-            ...normalizeQuotaWindow(item),
-          };
-        })
-      : [],
+    modelSession: normalizeModelQuotaWindows(source.model_session ?? source.modelSession),
+    modelWeekly: normalizeModelQuotaWindows(source.model_weekly ?? source.modelWeekly),
   };
 };
 

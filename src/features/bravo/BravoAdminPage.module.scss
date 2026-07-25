@@ -441,6 +441,53 @@
   color: #e5b84b;
 }
 
+
+.modelQuotaSection {
+  display: grid;
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 28%, var(--border-color));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--primary-color) 5%, var(--bg-secondary));
+}
+
+.modelQuotaList {
+  display: grid;
+  gap: 10px;
+}
+
+.modelQuotaCard {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.modelQuotaHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+
+  strong {
+    color: var(--text-primary);
+    font-size: 14px;
+  }
+}
+
+.independentBadge {
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  max-width: 100%;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
 .accountControls {
   display: grid;
   gap: 12px;

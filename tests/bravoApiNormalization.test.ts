@@ -110,6 +110,58 @@ describe('Bravo API normalization', () => {
     expect(quota?.modelWeekly[0]?.resetAt).toBeNull();
   });
 
+  test('normalizes independent Spark session and weekly quota windows', async () => {
+    const { normalizeBravoProjectsResponse } = await bravoModule;
+    const result = normalizeBravoProjectsResponse({
+      subscriptions: [
+        {
+          auth_index: 'codex:pro',
+          provider: 'codex',
+          quota: {
+            confidence: 'confirmed',
+            stale: true,
+            last_attempt_at: '2026-07-25T03:10:00Z',
+            session: { remaining_percent: 0 },
+            weekly: { remaining_percent: 0 },
+            model_session: [
+              {
+                model: 'gpt-5.3-codex-spark',
+                independent: true,
+                remaining_percent: 100,
+                reset_mode: 'scheduled',
+                reset_at: '2026-07-25T08:00:00Z',
+              },
+            ],
+            model_weekly: [
+              {
+                model: 'gpt-5.3-codex-spark',
+                independent: true,
+                remaining_percent: 65,
+                reset_mode: 'scheduled',
+                reset_at: '2026-07-30T08:00:00Z',
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    const quota = result.subscriptions[0]?.quota;
+    expect(quota?.weekly.remainingPercent).toBe(0);
+    expect(quota?.stale).toBe(true);
+    expect(quota?.lastAttemptAt).toBe('2026-07-25T03:10:00Z');
+    expect(quota?.modelSession[0]).toMatchObject({
+      model: 'gpt-5.3-codex-spark',
+      independent: true,
+      remainingPercent: 100,
+    });
+    expect(quota?.modelWeekly[0]).toMatchObject({
+      model: 'gpt-5.3-codex-spark',
+      independent: true,
+      remainingPercent: 65,
+    });
+  });
+
   test('merges project and pool endpoints without inventing missing collections', async () => {
     const { mergeBravoResponses, normalizeBravoProjectsResponse } = await bravoModule;
     const projects = normalizeBravoProjectsResponse({
