@@ -14,11 +14,17 @@ import {
   analyticsDeltaPercent,
   analyticsSeriesToCSV,
   analyticsUsageIsEmpty,
+  formatBravoResponseTime,
   resolveBravoAnalyticsRange,
   resolveBravoCustomRange,
   type BravoAnalyticsPreset,
   type BravoAnalyticsRange,
 } from './bravoAnalyticsPresentation';
+import {
+  bravoProviderLabel,
+  formatBravoSubscription,
+  formatBravoSubscriptionRecord,
+} from './bravoSubscriptionPresentation';
 import styles from './BravoProjectAnalytics.module.scss';
 
 interface BravoProjectAnalyticsProps {
@@ -56,14 +62,6 @@ const formatDate = (value: string, locale: string, withTime = false): string => 
   }).format(date);
 };
 
-const providerLabel = (provider: string): string => {
-  const normalized = provider.toLowerCase();
-  if (normalized === 'claude' || normalized === 'anthropic') return 'Claude';
-  if (normalized === 'codex') return 'OpenAI Codex';
-  if (normalized === 'openai') return 'OpenAI';
-  return provider || '—';
-};
-
 const safeFilePart = (value: string): string =>
   value
     .trim()
@@ -74,14 +72,40 @@ const safeFilePart = (value: string): string =>
 const usageMetrics: Array<{
   key: 'requests' | 'totalTokens' | 'failures' | 'averageLatencyMs';
   label: string;
-  suffix?: string;
   inverse?: boolean;
 }> = [
   { key: 'requests', label: 'requests' },
   { key: 'totalTokens', label: 'tokens' },
   { key: 'failures', label: 'failures', inverse: true },
-  { key: 'averageLatencyMs', label: 'latency', suffix: ' ms', inverse: true },
+  { key: 'averageLatencyMs', label: 'response_time', inverse: true },
 ];
+
+const formatTimelineRange = (
+  startValue: string,
+  endValue: string,
+  locale: string,
+  interval: 'hour' | 'day'
+): string => {
+  const start = new Date(startValue);
+  const end = new Date(endValue);
+  if (!Number.isFinite(start.getTime())) return startValue || '—';
+  const startLabel = new Intl.DateTimeFormat(locale, {
+    month: 'short',
+    day: 'numeric',
+    ...(interval === 'hour' ? { hour: '2-digit', minute: '2-digit' } : {}),
+  }).format(start);
+  if (interval !== 'hour' || !Number.isFinite(end.getTime())) return startLabel;
+  const sameDay =
+    start.getFullYear() === end.getFullYear() &&
+    start.getMonth() === end.getMonth() &&
+    start.getDate() === end.getDate();
+  const endLabel = new Intl.DateTimeFormat(locale, {
+    ...(sameDay ? {} : { month: 'short', day: 'numeric' }),
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(end);
+  return `${startLabel}–${endLabel}`;
+};
 
 function Delta({
   current,
@@ -106,6 +130,23 @@ function Delta({
     >
       {delta > 0 ? '+' : ''}
       {new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(delta)}%
+    </span>
+  );
+}
+
+function ResponseTimeLabel({ label, help }: { label: string; help: string }) {
+  return (
+    <span className={styles.metricWithHelp}>
+      <span>{label}</span>
+      <span
+        className={styles.metricHelpControl}
+        role="note"
+        tabIndex={0}
+        aria-label={help}
+        title={help}
+      >
+        <IconInfo size={13} aria-hidden="true" />
+      </span>
     </span>
   );
 }
@@ -281,15 +322,15 @@ export function BravoProjectAnalytics({ project, subscriptions }: BravoProjectAn
     URL.revokeObjectURL(url);
   };
 
-  const subscriptionByAnalyticsID = useMemo(
-    () =>
-      new Map(
-        subscriptions
-          .filter((subscription) => subscription.analyticsId)
-          .map((subscription) => [subscription.analyticsId, subscription])
-      ),
-    [subscriptions]
-  );
+  const subscriptionByReference = useMemo(() => {
+    const result = new Map<string, BravoSubscription>();
+    subscriptions.forEach((subscription) => {
+      [subscription.analyticsId, subscription.authIndex, subscription.authId]
+        .filter(Boolean)
+        .forEach((reference) => result.set(reference, subscription));
+    });
+    return result;
+  }, [subscriptions]);
 
   const currentAnalytics = state.current;
   const breakdownGroups = useMemo(() => {
@@ -305,10 +346,54 @@ export function BravoProjectAnalytics({ project, subscriptions }: BravoProjectAn
     });
     return currentAnalytics.breakdown.subscriptions.map((row) => ({
       ...row,
-      subscription: subscriptionByAnalyticsID.get(row.subscriptionId),
+      subscription:
+        subscriptionByReference.get(row.subscriptionId) ??
+        subscriptionByReference.get(row.authIndex),
       models: rowsBySubscription.get(row.subscriptionId) ?? [],
     }));
-  }, [currentAnalytics, project.id, subscriptionByAnalyticsID]);
+  }, [currentAnalytics, project.id, subscriptionByReference]);
+
+  const timelineGroups = useMemo(() => {
+    if (!currentAnalytics) return [];
+    const groups = new Map<
+      string,
+      {
+        start: string;
+        end: string;
+        rows: Array<
+          BravoAnalyticsResponse['subscriptionTimeline'][number] & {
+            identity: ReturnType<typeof formatBravoSubscription>;
+          }
+        >;
+      }
+    >();
+    [...currentAnalytics.subscriptionTimeline]
+      .sort((left, right) => new Date(right.start).getTime() - new Date(left.start).getTime())
+      .forEach((row) => {
+        const subscription =
+          subscriptionByReference.get(row.subscriptionId) ??
+          subscriptionByReference.get(row.authIndex);
+        const identity = formatBravoSubscription({
+          ...(subscription ?? {}),
+          provider: subscription?.provider || row.provider,
+          note: subscription?.note || row.note,
+          displayName: subscription?.displayName || row.displayName,
+          label: subscription?.label || row.label,
+          email: subscription?.email || row.email,
+          workspace: subscription?.workspace || row.workspace,
+          subscriptionId: row.subscriptionId,
+          authIndex: subscription?.authIndex || row.authIndex,
+        });
+        const key = `${row.start}\u0000${row.end}`;
+        const group = groups.get(key) ?? { start: row.start, end: row.end, rows: [] };
+        group.rows.push({ ...row, identity });
+        groups.set(key, group);
+      });
+    return [...groups.values()].map((group) => ({
+      ...group,
+      rows: [...group.rows].sort((left, right) => right.usage.totalTokens - left.usage.totalTokens),
+    }));
+  }, [currentAnalytics, subscriptionByReference]);
 
   const breakdownPartial =
     Boolean(state.current?.breakdownCoverageFrom) &&
@@ -317,6 +402,61 @@ export function BravoProjectAnalytics({ project, subscriptions }: BravoProjectAn
     Boolean(state.current?.coverageFrom) &&
     new Date(range.from).getTime() < new Date(state.current?.coverageFrom ?? '').getTime();
   const empty = state.current ? analyticsUsageIsEmpty(state.current.summary) : false;
+  const visibleTimelineGroups = timelineGroups.slice(0, 8);
+  const olderTimelineGroups = timelineGroups.slice(8);
+
+  const renderTimelineGroups = (groups: typeof timelineGroups) =>
+    groups.map((group) => (
+      <section className={styles.timelineBucket} key={`${group.start}:${group.end}`}>
+        <header>
+          <time dateTime={group.start}>
+            {formatTimelineRange(group.start, group.end, locale, state.current?.interval ?? 'day')}
+          </time>
+          <span>
+            {t('bravo.analytics.timeline_accounts', {
+              count: group.rows.length,
+            })}
+          </span>
+        </header>
+        <div>
+          {group.rows.map((row) => {
+            const cacheTokens =
+              row.usage.cacheReadTokens + row.usage.cacheCreationTokens || row.usage.cachedTokens;
+            return (
+              <div
+                className={styles.timelineRow}
+                key={`${row.start}:${row.subscriptionId}:${row.provider}`}
+              >
+                <span className={styles.timelineIdentity}>
+                  <strong title={row.identity.title}>{row.identity.title}</strong>
+                  <small title={row.identity.subtitle}>{row.identity.subtitle}</small>
+                </span>
+                <span className={styles.timelineMetric}>
+                  <small>{t('bravo.analytics.metrics.requests')}</small>
+                  <strong>{formatNumber(row.usage.requests, locale)}</strong>
+                </span>
+                <span className={styles.timelineMetric}>
+                  <small>{t('bravo.analytics.metrics.tokens')}</small>
+                  <strong>{formatNumber(row.usage.totalTokens, locale)}</strong>
+                </span>
+                <span className={styles.timelineMetric}>
+                  <small>{t('bravo.analytics.metrics.cache_tokens')}</small>
+                  <strong>{formatNumber(cacheTokens, locale)}</strong>
+                </span>
+                <span
+                  className={`${styles.timelineMetric} ${
+                    row.usage.failures > 0 ? styles.timelineFailures : ''
+                  }`}
+                >
+                  <small>{t('bravo.analytics.metrics.failures')}</small>
+                  <strong>{formatNumber(row.usage.failures, locale)}</strong>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    ));
 
   return (
     <details className={styles.analytics} onToggle={handleToggle}>
@@ -413,10 +553,21 @@ export function BravoProjectAnalytics({ project, subscriptions }: BravoProjectAn
               <div className={styles.kpis}>
                 {usageMetrics.map((metric) => (
                   <div className={styles.kpi} key={metric.key}>
-                    <span>{t(`bravo.analytics.metrics.${metric.label}`)}</span>
+                    {metric.key === 'averageLatencyMs' ? (
+                      <ResponseTimeLabel
+                        label={t('bravo.analytics.metrics.response_time')}
+                        help={t('bravo.analytics.response_time_help')}
+                      />
+                    ) : (
+                      <span>{t(`bravo.analytics.metrics.${metric.label}`)}</span>
+                    )}
                     <strong>
-                      {formatNumber(state.current?.summary[metric.key] ?? 0, locale)}
-                      {metric.suffix}
+                      {metric.key === 'averageLatencyMs'
+                        ? formatBravoResponseTime(
+                            state.current?.summary.averageLatencyMs ?? 0,
+                            locale
+                          )
+                        : formatNumber(state.current?.summary[metric.key] ?? 0, locale)}
                     </strong>
                     {state.previous ? (
                       <small>
@@ -484,6 +635,36 @@ export function BravoProjectAnalytics({ project, subscriptions }: BravoProjectAn
                 </div>
               ) : null}
 
+              {visibleTimelineGroups.length ? (
+                <div className={styles.timeline}>
+                  <div className={styles.timelineHeading}>
+                    <div>
+                      <h4>{t('bravo.analytics.timeline_title')}</h4>
+                      <p>{t('bravo.analytics.timeline_hint')}</p>
+                    </div>
+                    <span>{t(`bravo.analytics.interval.${state.current.interval}`)}</span>
+                  </div>
+                  <div className={styles.timelineList}>
+                    {renderTimelineGroups(visibleTimelineGroups)}
+                    {olderTimelineGroups.length ? (
+                      <details className={styles.timelineOlder}>
+                        <summary>
+                          <span>
+                            {t('bravo.analytics.timeline_older', {
+                              count: olderTimelineGroups.length,
+                            })}
+                          </span>
+                          <span className={styles.chevron} aria-hidden="true">
+                            ›
+                          </span>
+                        </summary>
+                        <div>{renderTimelineGroups(olderTimelineGroups)}</div>
+                      </details>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+
               {empty ? (
                 <div className={styles.empty}>{t('bravo.analytics.empty')}</div>
               ) : (
@@ -528,7 +709,12 @@ export function BravoProjectAnalytics({ project, subscriptions }: BravoProjectAn
                             <th scope="col">{t('bravo.analytics.metrics.requests')}</th>
                             <th scope="col">{t('bravo.analytics.metrics.tokens')}</th>
                             <th scope="col">{t('bravo.analytics.metrics.failures')}</th>
-                            <th scope="col">{t('bravo.analytics.metrics.latency')}</th>
+                            <th scope="col">
+                              <ResponseTimeLabel
+                                label={t('bravo.analytics.metrics.response_time')}
+                                help={t('bravo.analytics.response_time_help')}
+                              />
+                            </th>
                           </tr>
                         </thead>
                         <tbody>
@@ -544,7 +730,9 @@ export function BravoProjectAnalytics({ project, subscriptions }: BravoProjectAn
                               <td>{formatNumber(point.usage.requests, locale)}</td>
                               <td>{formatNumber(point.usage.totalTokens, locale)}</td>
                               <td>{formatNumber(point.usage.failures, locale)}</td>
-                              <td>{formatNumber(point.usage.averageLatencyMs, locale)} ms</td>
+                              <td>
+                                {formatBravoResponseTime(point.usage.averageLatencyMs, locale)}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -567,22 +755,24 @@ export function BravoProjectAnalytics({ project, subscriptions }: BravoProjectAn
                       <div className={styles.breakdownList}>
                         {breakdownGroups.map((group) => {
                           const subscription = group.subscription;
-                          const label =
-                            subscription?.workspace ||
-                            subscription?.label ||
-                            subscription?.email ||
-                            group.label ||
-                            group.subscriptionId;
-                          const provider = subscription?.provider || group.provider;
+                          const identity = subscription
+                            ? formatBravoSubscriptionRecord(subscription)
+                            : formatBravoSubscription({
+                                provider: group.provider,
+                                note: group.note,
+                                displayName: group.displayName,
+                                label: group.label,
+                                email: group.email,
+                                workspace: group.workspace,
+                                subscriptionId: group.subscriptionId,
+                                authIndex: group.authIndex,
+                              });
                           return (
                             <details key={group.subscriptionId}>
                               <summary>
                                 <span>
-                                  <strong>{label}</strong>
-                                  <small>
-                                    {providerLabel(provider)}
-                                    {subscription?.plan ? ` · ${subscription.plan}` : ''}
-                                  </small>
+                                  <strong title={identity.title}>{identity.title}</strong>
+                                  <small title={identity.subtitle}>{identity.subtitle}</small>
                                 </span>
                                 <span>{formatNumber(group.usage.totalTokens, locale)}</span>
                                 <span className={styles.chevron} aria-hidden="true">
@@ -607,7 +797,7 @@ export function BravoProjectAnalytics({ project, subscriptions }: BravoProjectAn
                                             ? `${row.logicalModel} → ${row.model}`
                                             : row.model}
                                         </strong>
-                                        <small>{providerLabel(row.provider)}</small>
+                                        <small>{bravoProviderLabel(row.provider)}</small>
                                       </span>
                                       <span className={styles.modelMetric}>
                                         <small>{t('bravo.analytics.metrics.requests')}</small>

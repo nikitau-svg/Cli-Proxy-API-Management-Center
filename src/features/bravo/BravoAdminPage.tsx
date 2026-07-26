@@ -39,6 +39,7 @@ import { formatBravoQuotaReset } from './bravoQuotaPresentation';
 import { BravoCompatibilityPanel } from './BravoCompatibilityPanel';
 import { BravoProjectAnalytics } from './BravoProjectAnalytics';
 import { BravoRouteEditor } from './BravoRouteEditor';
+import { bravoProviderLabel, formatBravoSubscriptionRecord } from './bravoSubscriptionPresentation';
 import styles from './BravoAdminPage.module.scss';
 
 type EditorState = { mode: 'create'; project: null } | { mode: 'edit'; project: BravoProject };
@@ -111,24 +112,6 @@ const draftFromProject = (project: BravoProject): ProjectDraft => {
 
 const subscriptionReference = (subscription: BravoSubscription): string =>
   subscription.authIndex || subscription.authId;
-
-const providerName = (provider: string): string => {
-  const normalized = provider.trim().toLowerCase();
-  if (normalized === 'claude' || normalized === 'anthropic') return 'Claude';
-  if (normalized === 'codex') return 'OpenAI Codex';
-  if (normalized === 'openai') return 'OpenAI';
-  return provider.trim() || 'Unknown';
-};
-
-const subscriptionWorkspace = (subscription: BravoSubscription): string =>
-  subscription.workspace ||
-  subscription.label ||
-  subscription.email ||
-  subscription.authId ||
-  subscription.authIndex;
-
-const subscriptionLabel = (subscription: BravoSubscription): string =>
-  `${providerName(subscription.provider)} · ${subscriptionWorkspace(subscription)}`;
 
 const clampPercent = (value: number): number => Math.max(0, Math.min(100, value));
 
@@ -369,27 +352,27 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
     const query = allowedFilter.trim().toLowerCase();
     const groups = new Map<string, PrimaryGroup>();
     data.subscriptions.forEach((subscription) => {
-      const searchable = [
-        subscription.provider,
-        subscription.workspace,
-        subscription.label,
-        subscription.email,
-        subscription.plan,
-      ]
-        .join(' ')
-        .toLowerCase();
-      if (query && !searchable.includes(query)) return;
-      const workspace = subscriptionWorkspace(subscription);
-      const id = `${subscription.provider}:${workspace}`;
+      const identity = formatBravoSubscriptionRecord(subscription);
+      if (query && !identity.searchText.includes(query)) return;
+      const id = subscription.provider || 'unknown';
       const group = groups.get(id) ?? {
         id,
-        label: `${providerName(subscription.provider)} · ${workspace}`,
+        label: bravoProviderLabel(subscription.provider),
         subscriptions: [],
       };
       group.subscriptions.push(subscription);
       groups.set(id, group);
     });
-    return [...groups.values()].sort((left, right) => left.label.localeCompare(right.label));
+    return [...groups.values()]
+      .map((group) => ({
+        ...group,
+        subscriptions: [...group.subscriptions].sort((left, right) =>
+          formatBravoSubscriptionRecord(left).title.localeCompare(
+            formatBravoSubscriptionRecord(right).title
+          )
+        ),
+      }))
+      .sort((left, right) => left.label.localeCompare(right.label));
   }, [allowedFilter, data.subscriptions]);
 
   const primaryGroups = useMemo<PrimaryGroup[]>(() => {
@@ -398,27 +381,27 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
     data.subscriptions.forEach((subscription) => {
       const reference = subscriptionReference(subscription);
       if (!draft.allSubscriptions && !draft.allowedAuthIds.includes(reference)) return;
-      const searchable = [
-        subscription.provider,
-        subscription.workspace,
-        subscription.label,
-        subscription.email,
-        subscription.plan,
-      ]
-        .join(' ')
-        .toLowerCase();
-      if (query && !searchable.includes(query)) return;
-      const workspace = subscriptionWorkspace(subscription);
-      const id = `${subscription.provider}:${workspace}`;
+      const identity = formatBravoSubscriptionRecord(subscription);
+      if (query && !identity.searchText.includes(query)) return;
+      const id = subscription.provider || 'unknown';
       const group = groups.get(id) ?? {
         id,
-        label: `${providerName(subscription.provider)} · ${workspace}`,
+        label: bravoProviderLabel(subscription.provider),
         subscriptions: [],
       };
       group.subscriptions.push(subscription);
       groups.set(id, group);
     });
-    return [...groups.values()].sort((left, right) => left.label.localeCompare(right.label));
+    return [...groups.values()]
+      .map((group) => ({
+        ...group,
+        subscriptions: [...group.subscriptions].sort((left, right) =>
+          formatBravoSubscriptionRecord(left).title.localeCompare(
+            formatBravoSubscriptionRecord(right).title
+          )
+        ),
+      }))
+      .sort((left, right) => left.label.localeCompare(right.label));
   }, [data.subscriptions, draft.allSubscriptions, draft.allowedAuthIds, primaryFilter]);
 
   const openCreate = () => {
@@ -809,14 +792,14 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                   .map((id) => projectByID.get(id)?.name)
                   .filter((name): name is string => Boolean(name));
                 const busy = mutatingSubscription === subscription.authIndex;
+                const identity = formatBravoSubscriptionRecord(subscription);
                 return (
                   <details className={styles.subscription} key={subscription.authIndex}>
                     <summary>
                       <span className={styles.subscriptionIdentity}>
-                        <strong>{subscriptionLabel(subscription)}</strong>
-                        <span>
-                          {[subscription.email, subscription.plan].filter(Boolean).join(' · ') ||
-                            t('bravo.subscriptions.details_unknown')}
+                        <strong title={identity.title}>{identity.title}</strong>
+                        <span title={identity.subtitle}>
+                          {identity.subtitle || t('bravo.subscriptions.details_unknown')}
                         </span>
                       </span>
                       <span className={styles.subscriptionBadges}>
@@ -1069,14 +1052,30 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
             const revoked = project.status === 'revoked';
             const allModels = project.models.length === 0 || project.models.includes('*');
             const allSubscriptions = project.allowedAuthIds.length === 0;
-            const allowedLabels = project.allowedAuthIds
-              .map((reference) => subscriptionByReference.get(reference))
-              .filter((item): item is BravoSubscription => Boolean(item))
-              .map(subscriptionLabel);
-            const primaryLabels = project.primaryAuthIds
-              .map((reference) => subscriptionByReference.get(reference))
-              .filter((item): item is BravoSubscription => Boolean(item))
-              .map(subscriptionLabel);
+            const allowedSubscriptionLabels = project.allowedAuthIds
+              .map((reference) => {
+                const subscription = subscriptionByReference.get(reference);
+                return subscription
+                  ? {
+                      reference,
+                      title: formatBravoSubscriptionRecord(subscription).title,
+                    }
+                  : null;
+              })
+              .filter((item): item is { reference: string; title: string } => Boolean(item));
+            const primarySubscriptionLabels = project.primaryAuthIds
+              .map((reference) => {
+                const subscription = subscriptionByReference.get(reference);
+                return subscription
+                  ? {
+                      reference,
+                      title: formatBravoSubscriptionRecord(subscription).title,
+                    }
+                  : null;
+              })
+              .filter((item): item is { reference: string; title: string } => Boolean(item));
+            const allowedLabels = allowedSubscriptionLabels.map((item) => item.title);
+            const primaryLabels = primarySubscriptionLabels.map((item) => item.title);
             const allowedSummary = allSubscriptions
               ? t('bravo.subscriptions.card_pool_all')
               : t('bravo.subscriptions.card_pool_selected', {
@@ -1128,8 +1127,10 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                       <p>{t('bravo.subscriptions.all_allowed')}</p>
                     ) : allowedLabels.length ? (
                       <div className={styles.tags}>
-                        {allowedLabels.map((label) => (
-                          <span key={label}>{label}</span>
+                        {allowedSubscriptionLabels.map(({ reference, title }) => (
+                          <span key={reference}>
+                            <strong>{title}</strong>
+                          </span>
                         ))}
                       </div>
                     ) : (
@@ -1140,8 +1141,10 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                     <h3>{t('bravo.subscriptions.primary')}</h3>
                     {primaryLabels.length ? (
                       <div className={styles.tags}>
-                        {primaryLabels.map((label) => (
-                          <span key={label}>{label}</span>
+                        {primarySubscriptionLabels.map(({ reference, title }) => (
+                          <span key={reference}>
+                            <strong>{title}</strong>
+                          </span>
                         ))}
                       </div>
                     ) : (
@@ -1313,6 +1316,7 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                       <h3>{group.label}</h3>
                       {group.subscriptions.map((subscription) => {
                         const reference = subscriptionReference(subscription);
+                        const identity = formatBravoSubscriptionRecord(subscription);
                         return (
                           <SelectionCheckbox
                             key={subscription.authIndex}
@@ -1321,16 +1325,8 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                             disabled={saving}
                             label={
                               <span className={styles.primaryOption}>
-                                <strong>
-                                  {subscription.label ||
-                                    subscription.email ||
-                                    subscriptionWorkspace(subscription)}
-                                </strong>
-                                <span>
-                                  {[subscription.plan, subscription.effectiveTariff]
-                                    .filter(Boolean)
-                                    .join(' · ')}
-                                </span>
+                                <strong>{identity.title}</strong>
+                                <span>{identity.subtitle}</span>
                               </span>
                             }
                           />
@@ -1374,6 +1370,7 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                   <h3>{group.label}</h3>
                   {group.subscriptions.map((subscription) => {
                     const reference = subscriptionReference(subscription);
+                    const identity = formatBravoSubscriptionRecord(subscription);
                     const otherOwnerIDs = subscriptionOwnerIDs(subscription).filter(
                       (id) => id !== editor?.project?.id
                     );
@@ -1398,16 +1395,8 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                         }
                         label={
                           <span className={styles.primaryOption}>
-                            <strong>
-                              {subscription.label ||
-                                subscription.email ||
-                                subscriptionWorkspace(subscription)}
-                            </strong>
-                            <span>
-                              {[subscription.plan, subscription.effectiveTariff]
-                                .filter(Boolean)
-                                .join(' · ')}
-                            </span>
+                            <strong>{identity.title}</strong>
+                            <span>{identity.subtitle}</span>
                             {unavailable ? (
                               <small>
                                 {t('bravo.subscriptions.already_owned', {

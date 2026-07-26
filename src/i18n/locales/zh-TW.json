@@ -1832,11 +1832,21 @@
         "requests": "供應商嘗試次數",
         "tokens": "總 Token",
         "failures": "失敗",
-        "latency": "平均延遲",
+        "latency": "平均回應時間",
+        "response_time": "平均回應時間",
         "input_tokens": "輸入",
         "output_tokens": "輸出",
         "reasoning_tokens": "推理",
         "cache_tokens": "快取"
+      },
+      "response_time_help": "供應商嘗試的完整持續時間；串流回應計時至回應結束。",
+      "timeline_title": "訂閱使用時間",
+      "timeline_hint": "此專案最近使用的帳戶。較早時段預設收合，避免介面擁擠。",
+      "timeline_accounts": "{{count}} 個訂閱",
+      "timeline_older": "顯示較早的 {{count}} 個時段",
+      "interval": {
+        "hour": "按小時",
+        "day": "按天"
       },
       "no_baseline": "新增",
       "vs_previous": "與上一期間相比",

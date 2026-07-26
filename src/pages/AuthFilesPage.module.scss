@@ -1354,6 +1354,8 @@
 .noteValue {
   @include text-ellipsis-multiline(2);
   min-width: 0;
+  color: var(--text-primary);
+  font-weight: 700;
   word-break: break-word;
 }
 

@@ -74,6 +74,25 @@ export const analyticsDeltaPercent = (current: number, previous: number): number
   return ((current - previous) / Math.abs(previous)) * 100;
 };
 
+export const formatBravoResponseTime = (milliseconds: number, locale: string): string => {
+  if (!Number.isFinite(milliseconds) || milliseconds <= 0) return '—';
+  const normalizedLocale = locale.toLowerCase();
+  const millisecondUnit = normalizedLocale.startsWith('ru') ? 'мс' : 'ms';
+  const secondUnit = normalizedLocale.startsWith('ru')
+    ? 'с'
+    : normalizedLocale.startsWith('zh')
+      ? '秒'
+      : 's';
+  if (milliseconds < 1000) {
+    return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(
+      milliseconds
+    )} ${millisecondUnit}`;
+  }
+  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(
+    milliseconds / 1000
+  )} ${secondUnit}`;
+};
+
 const csvCell = (value: string | number): string => {
   const text = String(value);
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
