@@ -1806,11 +1806,21 @@
         "requests": "供应商尝试次数",
         "tokens": "总 Token",
         "failures": "失败",
-        "latency": "平均延迟",
+        "latency": "平均响应时间",
+        "response_time": "平均响应时间",
         "input_tokens": "输入",
         "output_tokens": "输出",
         "reasoning_tokens": "推理",
         "cache_tokens": "缓存"
+      },
+      "response_time_help": "供应商尝试的完整持续时间；流式响应计时至响应结束。",
+      "timeline_title": "订阅使用时间",
+      "timeline_hint": "此项目最近使用的账户。较早时段默认收起，避免界面拥挤。",
+      "timeline_accounts": "{{count}} 个订阅",
+      "timeline_older": "显示更早的 {{count}} 个时段",
+      "interval": {
+        "hour": "按小时",
+        "day": "按天"
       },
       "no_baseline": "新增",
       "vs_previous": "对比上一周期",

@@ -74,6 +74,8 @@ export interface BravoSubscription {
   authId: string;
   analyticsId: string;
   provider: string;
+  note: string;
+  displayName: string;
   label: string;
   email: string;
   workspace: string;
@@ -155,8 +157,26 @@ export interface BravoAnalyticsProjectBreakdown {
 export interface BravoAnalyticsSubscriptionBreakdown {
   subscriptionId: string;
   authIndex: string;
+  note: string;
+  displayName: string;
   label: string;
+  email: string;
+  workspace: string;
   provider: string;
+  usage: BravoAnalyticsUsage;
+}
+
+export interface BravoAnalyticsSubscriptionTimelinePoint {
+  start: string;
+  end: string;
+  subscriptionId: string;
+  authIndex: string;
+  provider: string;
+  note: string;
+  displayName: string;
+  label: string;
+  email: string;
+  workspace: string;
   usage: BravoAnalyticsUsage;
 }
 
@@ -199,6 +219,7 @@ export interface BravoAnalyticsResponse {
   breakdownCoverageFrom: string;
   summary: BravoAnalyticsUsage;
   series: BravoAnalyticsPoint[];
+  subscriptionTimeline: BravoAnalyticsSubscriptionTimelinePoint[];
   breakdown: {
     projects: BravoAnalyticsProjectBreakdown[];
     subscriptions: BravoAnalyticsSubscriptionBreakdown[];
@@ -559,6 +580,8 @@ const normalizeSubscription = (value: unknown): BravoSubscription | null => {
     authId: asString(source.auth_id ?? source.authId).trim(),
     analyticsId: asString(source.analytics_id ?? source.analyticsId).trim(),
     provider: asString(source.provider).trim().toLowerCase() || 'unknown',
+    note: decodeDisplayText(source.note).trim(),
+    displayName: decodeDisplayText(source.display_name ?? source.displayName).trim(),
     label: decodeDisplayText(source.label ?? source.name).trim(),
     email: decodeDisplayText(source.email).trim(),
     workspace: decodeDisplayText(source.workspace ?? source.organization ?? source.org).trim(),
@@ -605,6 +628,30 @@ const normalizeAnalyticsPoint = (value: unknown): BravoAnalyticsPoint | null => 
   };
 };
 
+const normalizeSubscriptionTimelinePoint = (
+  value: unknown
+): BravoAnalyticsSubscriptionTimelinePoint | null => {
+  const source = isRecord(value) ? value : {};
+  const start = asString(source.start ?? source.timestamp).trim();
+  const subscriptionId = asString(
+    source.subscription_id ?? source.subscriptionId ?? source.auth_index ?? source.authIndex
+  ).trim();
+  if (!start || !subscriptionId) return null;
+  return {
+    start,
+    end: asString(source.end).trim(),
+    subscriptionId,
+    authIndex: asString(source.auth_index ?? source.authIndex).trim(),
+    provider: asString(source.provider).trim().toLowerCase(),
+    note: decodeDisplayText(source.note).trim(),
+    displayName: decodeDisplayText(source.display_name ?? source.displayName).trim(),
+    label: decodeDisplayText(source.label).trim(),
+    email: decodeDisplayText(source.email).trim(),
+    workspace: decodeDisplayText(source.workspace ?? source.organization ?? source.org).trim(),
+    usage: normalizeBravoAnalyticsUsage(source.usage ?? source),
+  };
+};
+
 const usageFromBreakdown = (source: Record<string, unknown>): BravoAnalyticsUsage =>
   normalizeBravoAnalyticsUsage(source.usage ?? source);
 
@@ -616,6 +663,7 @@ export const normalizeBravoAnalyticsResponse = (value: unknown): BravoAnalyticsR
   const filters = isRecord(source.filters) ? source.filters : {};
   const retention = isRecord(source.retention) ? source.retention : {};
   const breakdown = isRecord(source.breakdown) ? source.breakdown : {};
+  const rawSubscriptionTimeline = source.subscription_timeline ?? source.subscriptionTimeline;
   const normalizeList = <T>(
     candidate: unknown,
     normalizer: (entry: Record<string, unknown>) => T | null
@@ -651,6 +699,11 @@ export const normalizeBravoAnalyticsResponse = (value: unknown): BravoAnalyticsR
           .map(normalizeAnalyticsPoint)
           .filter((point): point is BravoAnalyticsPoint => point !== null)
       : [],
+    subscriptionTimeline: Array.isArray(rawSubscriptionTimeline)
+      ? rawSubscriptionTimeline
+          .map(normalizeSubscriptionTimelinePoint)
+          .filter((point): point is BravoAnalyticsSubscriptionTimelinePoint => point !== null)
+      : [],
     breakdown: {
       projects: normalizeList(breakdown.projects, (entry) => {
         const projectId = asString(entry.project_id ?? entry.projectId).trim();
@@ -669,7 +722,11 @@ export const normalizeBravoAnalyticsResponse = (value: unknown): BravoAnalyticsR
         return {
           subscriptionId,
           authIndex: asString(entry.auth_index ?? entry.authIndex).trim(),
-          label: asString(entry.label).trim(),
+          note: decodeDisplayText(entry.note).trim(),
+          displayName: decodeDisplayText(entry.display_name ?? entry.displayName).trim(),
+          label: decodeDisplayText(entry.label).trim(),
+          email: decodeDisplayText(entry.email).trim(),
+          workspace: decodeDisplayText(entry.workspace ?? entry.organization ?? entry.org).trim(),
           provider: asString(entry.provider).trim().toLowerCase(),
           usage: usageFromBreakdown(entry),
         };

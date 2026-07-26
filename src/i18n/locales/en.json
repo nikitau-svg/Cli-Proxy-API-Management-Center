@@ -1806,11 +1806,21 @@
         "requests": "Provider attempts",
         "tokens": "Total tokens",
         "failures": "Failures",
-        "latency": "Average latency",
+        "latency": "Average response time",
+        "response_time": "Average response time",
         "input_tokens": "Input",
         "output_tokens": "Output",
         "reasoning_tokens": "Reasoning",
         "cache_tokens": "Cache"
+      },
+      "response_time_help": "Full provider-attempt duration; for streaming, measured until the response completes.",
+      "timeline_title": "When subscriptions were used",
+      "timeline_hint": "Recent account activity in this project. Open earlier periods only when you need them.",
+      "timeline_accounts": "{{count}} subscriptions",
+      "timeline_older": "Show {{count}} earlier periods",
+      "interval": {
+        "hour": "By hour",
+        "day": "By day"
       },
       "no_baseline": "new",
       "vs_previous": "vs previous period",

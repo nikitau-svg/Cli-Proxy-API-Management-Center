@@ -228,10 +228,9 @@
 
   > summary {
     display: grid;
-    grid-template-columns: minmax(240px, 1.35fr) auto minmax(130px, 0.65fr) minmax(
-        180px,
-        0.8fr
-      ) 22px;
+    grid-template-columns:
+      minmax(240px, 1.35fr) auto minmax(130px, 0.65fr) minmax(180px, 0.8fr)
+      22px;
     align-items: center;
     gap: 12px;
     min-height: 64px;
@@ -652,6 +651,7 @@
 .projectPrimary {
   color: var(--text-tertiary);
   font-size: 12px;
+  font-weight: 700;
 }
 
 .usageSummary {
@@ -693,6 +693,11 @@
     color: var(--text-secondary);
     font-size: 12px;
     overflow-wrap: anywhere;
+  }
+
+  strong {
+    color: var(--text-primary);
+    font-weight: 700;
   }
 }
 

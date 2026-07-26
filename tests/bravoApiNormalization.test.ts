@@ -202,6 +202,8 @@ describe('Bravo API normalization', () => {
           auth_id: 'auth&amp;opaque',
           analytics_id: 'sub_4be9',
           provider: 'claude',
+          note: 'Nick &amp; primary',
+          display_name: 'Nick &amp; Team Account',
           label: 'Nick &amp; Team',
           email: 'nick&#64;example.test',
           workspace: 'Nick&#39;s Organization',
@@ -214,6 +216,8 @@ describe('Bravo API normalization', () => {
       authIndex: 'claude:opaque&#39;identity',
       authId: 'auth&amp;opaque',
       analyticsId: 'sub_4be9',
+      note: 'Nick & primary',
+      displayName: 'Nick & Team Account',
       label: 'Nick & Team',
       email: 'nick@example.test',
       workspace: "Nick's Organization",
@@ -272,9 +276,56 @@ describe('Bravo API normalization', () => {
     expect(result.summary.averageLatencyMs).toBe(500);
     expect(result.summary.failureRatePercent).toBe(20);
     expect(result.series[0]?.usage.totalTokens).toBe(60);
+    expect(result.subscriptionTimeline).toEqual([]);
     expect(result.breakdown.subscriptions[0]?.subscriptionId).toBe('sub_safe');
     expect(result.breakdown.projectSubscriptionModels[0]?.logicalModel).toBe('bravo/sol');
     expect(result.breakdown.projectSubscriptionModels[0]?.model).toBe('gpt-5.6-sol');
+  });
+
+  test('normalizes the optional subscription timeline without trusting malformed rows', async () => {
+    const { normalizeBravoAnalyticsResponse } = await bravoModule;
+    const result = normalizeBravoAnalyticsResponse({
+      subscription_timeline: [
+        {
+          start: '2026-07-26T18:00:00Z',
+          end: '2026-07-26T19:00:00Z',
+          subscription_id: 'sub_safe',
+          auth_index: 'claude:team-a',
+          provider: 'claude',
+          note: 'Primary &amp; shared',
+          display_name: 'Team &lt;A&gt;',
+          label: 'legacy',
+          workspace: 'Ascetix &amp; Team',
+          email: 'nikita&#64;example.test',
+          usage: {
+            requests: 3,
+            total_tokens: 1200,
+            cache_read_tokens: 900,
+            failures: 1,
+            average_latency_ms: 10874,
+          },
+        },
+        {
+          start: '2026-07-26T18:00:00Z',
+          provider: 'codex',
+        },
+      ],
+    });
+
+    expect(result.subscriptionTimeline).toHaveLength(1);
+    expect(result.subscriptionTimeline[0]).toMatchObject({
+      start: '2026-07-26T18:00:00Z',
+      subscriptionId: 'sub_safe',
+      authIndex: 'claude:team-a',
+      provider: 'claude',
+      note: 'Primary & shared',
+      displayName: 'Team <A>',
+      label: 'legacy',
+      workspace: 'Ascetix & Team',
+      email: 'nikita@example.test',
+    });
+    expect(result.subscriptionTimeline[0]?.usage.cacheReadTokens).toBe(900);
+    expect(result.subscriptionTimeline[0]?.usage.averageLatencyMs).toBe(10874);
   });
 
   test('keeps capability metadata internal and never sends it in a route update', async () => {
