@@ -1457,12 +1457,14 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                     rightElement={<IconSearch size={16} />}
                     aria-label={t('bravo.models.search')}
                   />
-                  <div className={styles.modelList}>
+                  <div className={styles.modelList} data-testid="bravo-model-list">
                     {visibleModels.map((model) => (
                       <SelectionCheckbox
                         key={model.id}
                         checked={draft.selectedModels.includes(model.id)}
                         onChange={(checked) => toggleModel(model.id, checked)}
+                        className={styles.modelListItem}
+                        labelClassName={styles.modelListItemLabel}
                         label={
                           <span className={styles.modelOption}>
                             <strong>{model.displayName}</strong>
