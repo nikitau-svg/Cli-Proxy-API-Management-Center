@@ -1603,6 +1603,25 @@
     "routing_status": "路由狀態",
     "diagnostics": "診斷",
     "technical_details": "Technical details",
+    "prompt_cache": {
+      "title": "提示快取",
+      "anthropic_ttl": "Claude 快取時間",
+      "anthropic_ttl_options": {
+        "5m": "5 分鐘 · 建議",
+        "1h": "1 小時",
+        "auto": "自動 · 保留用戶端政策"
+      },
+      "anthropic_ttl_short": {
+        "5m": "5 分鐘",
+        "1h": "1 小時",
+        "auto": "自動"
+      },
+      "anthropic_help": "Bravo 會將此 Claude 原生政策套用到可快取的位置。較長時間可改善重複的大型工作；仍依供應商規則計費。",
+      "openai_title": "OpenAI 和 Codex · 自動管理",
+      "openai_help": "快取保留時間由 OpenAI 管理。用戶端提供受支援的快取識別時，Bravo 會按專案隔離該識別；目標帳戶能否重用現有快取由供應商決定。",
+      "fallback_help": "回退後 Bravo 會再次套用供應商原生快取政策。快取命中可加速重複請求，未命中不會阻擋請求或改變回答。",
+      "card_summary": "Claude：{{claude}} · OpenAI/Codex：自動"
+    },
     "projects": {
       "load_failed": "無法載入 Bravo 專案",
       "create": "建立專案",

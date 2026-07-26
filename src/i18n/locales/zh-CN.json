@@ -1577,6 +1577,25 @@
     "routing_status": "路由状态",
     "diagnostics": "诊断",
     "technical_details": "Technical details",
+    "prompt_cache": {
+      "title": "提示缓存",
+      "anthropic_ttl": "Claude 缓存时长",
+      "anthropic_ttl_options": {
+        "5m": "5 分钟 · 推荐",
+        "1h": "1 小时",
+        "auto": "自动 · 保留客户端策略"
+      },
+      "anthropic_ttl_short": {
+        "5m": "5 分钟",
+        "1h": "1 小时",
+        "auto": "自动"
+      },
+      "anthropic_help": "Bravo 会将此 Claude 原生策略应用到可缓存的位置。更长的时长可改善重复的大型任务；仍按供应商规则计费。",
+      "openai_title": "OpenAI 和 Codex · 自动管理",
+      "openai_help": "缓存保留时间由 OpenAI 管理。客户端提供受支持的缓存标识时，Bravo 会按项目隔离该标识；目标账户能否复用现有缓存由供应商决定。",
+      "fallback_help": "回退后 Bravo 会再次应用供应商原生缓存策略。缓存命中可加快重复请求，未命中不会阻止请求或改变回答。",
+      "card_summary": "Claude：{{claude}} · OpenAI/Codex：自动"
+    },
     "projects": {
       "load_failed": "无法加载 Bravo 项目",
       "create": "创建项目",

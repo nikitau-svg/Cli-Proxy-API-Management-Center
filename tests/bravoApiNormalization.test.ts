@@ -144,6 +144,10 @@ describe('Bravo API normalization', () => {
           name: 'A',
           allowed_auth_ids: ['claude:personal', 'codex:pro'],
           primary_auth_ids: ['codex:pro'],
+          prompt_cache: {
+            anthropic_ttl: '1h',
+            openai_mode: 'provider_managed',
+          },
         },
       ],
       subscriptions: [
@@ -156,6 +160,10 @@ describe('Bravo API normalization', () => {
 
     expect(result.projects[0]?.allowedAuthIds).toEqual(['claude:personal', 'codex:pro']);
     expect(result.projects[0]?.primaryAuthIds).toEqual(['codex:pro']);
+    expect(result.projects[0]?.promptCache).toEqual({
+      anthropicTtl: '1h',
+      openaiMode: 'provider_managed',
+    });
     expect(result.subscriptions[0]?.analyticsId).toBe('sub_4be9');
     expect(
       serializeBravoProject({
@@ -164,10 +172,24 @@ describe('Bravo API normalization', () => {
         models: ['*'],
         allowedAuthIds: ['claude:personal', 'codex:pro'],
         primaryAuthIds: ['codex:pro'],
+        promptCache: { anthropicTtl: '1h' },
       })
     ).toMatchObject({
       allowed_auth_ids: ['claude:personal', 'codex:pro'],
       primary_auth_ids: ['codex:pro'],
+      prompt_cache: { anthropic_ttl: '1h' },
+    });
+  });
+
+  test('keeps the backend automatic policy when an older project omits cache policy', async () => {
+    const { normalizeBravoProjectsResponse } = await bravoModule;
+    const result = normalizeBravoProjectsResponse({
+      projects: [{ id: 'legacy-project', name: 'Legacy', models: ['*'] }],
+    });
+
+    expect(result.projects[0]?.promptCache).toEqual({
+      anthropicTtl: 'auto',
+      openaiMode: 'provider_managed',
     });
   });
 

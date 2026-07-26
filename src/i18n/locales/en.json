@@ -1577,6 +1577,25 @@
     "routing_status": "Routing status",
     "diagnostics": "Diagnostics",
     "technical_details": "Technical details",
+    "prompt_cache": {
+      "title": "Prompt caching",
+      "anthropic_ttl": "Claude cache lifetime",
+      "anthropic_ttl_options": {
+        "5m": "5 minutes · Recommended",
+        "1h": "1 hour",
+        "auto": "Automatic · Keep the client policy"
+      },
+      "anthropic_ttl_short": {
+        "5m": "5 min",
+        "1h": "1 hour",
+        "auto": "automatic"
+      },
+      "anthropic_help": "Bravo applies this native Claude policy to eligible cache breakpoints. A longer lifetime can improve repeated long tasks, while provider pricing still applies.",
+      "openai_title": "OpenAI and Codex · managed automatically",
+      "openai_help": "OpenAI controls cache retention. When the client supplies a supported cache identity, Bravo isolates it by project; the provider decides whether the target account can reuse an existing cache entry.",
+      "fallback_help": "Bravo applies the native cache policy again after fallback. A cache hit can make a repeated request faster, but a cache miss never blocks or changes the answer.",
+      "card_summary": "Claude: {{claude}} · OpenAI/Codex: automatic"
+    },
     "projects": {
       "load_failed": "Failed to load Bravo projects",
       "create": "Create project",

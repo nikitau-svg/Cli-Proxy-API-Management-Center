@@ -25,6 +25,7 @@ import {
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import {
   bravoApi,
+  type BravoAnthropicCacheTTL,
   type BravoProject,
   type BravoProjectsResponse,
   type BravoQuotaWindow,
@@ -50,6 +51,7 @@ interface ProjectDraft {
   allSubscriptions: boolean;
   allowedAuthIds: string[];
   primaryAuthIds: string[];
+  anthropicCacheTtl: BravoAnthropicCacheTTL;
 }
 
 interface IssuedKey {
@@ -87,6 +89,7 @@ const emptyDraft = (): ProjectDraft => ({
   allSubscriptions: true,
   allowedAuthIds: [],
   primaryAuthIds: [],
+  anthropicCacheTtl: '5m',
 });
 
 const shellQuote = (value: string): string => `'${value.replace(/'/g, `'"'"'`)}'`;
@@ -102,6 +105,7 @@ const draftFromProject = (project: BravoProject): ProjectDraft => {
     allSubscriptions,
     allowedAuthIds: [...project.allowedAuthIds],
     primaryAuthIds: [...project.primaryAuthIds],
+    anthropicCacheTtl: project.promptCache.anthropicTtl,
   };
 };
 
@@ -520,6 +524,9 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
         models: draft.allModels ? ['*'] : draft.selectedModels,
         allowedAuthIds: draft.allSubscriptions ? [] : draft.allowedAuthIds,
         primaryAuthIds: draft.primaryAuthIds,
+        promptCache: {
+          anthropicTtl: draft.anthropicCacheTtl,
+        },
       };
       if (editor.mode === 'create') {
         const result = await bravoApi.createProject(input);
@@ -549,6 +556,9 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
         models: project.models,
         allowedAuthIds: project.allowedAuthIds,
         primaryAuthIds: project.primaryAuthIds,
+        promptCache: {
+          anthropicTtl: project.promptCache.anthropicTtl,
+        },
       });
       await loadOverview();
       showNotification(
@@ -1146,6 +1156,16 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                         : t('bravo.models.count', { count: project.models.length })}
                     </p>
                   </div>
+                  <div className={styles.projectSection}>
+                    <h3>{t('bravo.prompt_cache.title')}</h3>
+                    <p>
+                      {t('bravo.prompt_cache.card_summary', {
+                        claude: t(
+                          `bravo.prompt_cache.anthropic_ttl_short.${project.promptCache.anthropicTtl}`
+                        ),
+                      })}
+                    </p>
+                  </div>
                   <BravoProjectAnalytics project={project} subscriptions={data.subscriptions} />
                   <details className={styles.technicalDetails}>
                     <summary>
@@ -1470,6 +1490,59 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                   </div>
                 </div>
               ) : null}
+            </div>
+          </details>
+
+          <details className={styles.editorDisclosure}>
+            <summary>
+              <span>{t('bravo.prompt_cache.title')}</span>
+              <span className={styles.sectionMeta}>
+                {t(`bravo.prompt_cache.anthropic_ttl_short.${draft.anthropicCacheTtl}`)}
+              </span>
+              <span className={styles.chevron} aria-hidden="true">
+                ›
+              </span>
+            </summary>
+            <div className={styles.editorDisclosureBody}>
+              <div className={styles.cacheControl}>
+                <label id="bravo-anthropic-cache-ttl">
+                  {t('bravo.prompt_cache.anthropic_ttl')}
+                </label>
+                <Select
+                  value={draft.anthropicCacheTtl}
+                  options={[
+                    {
+                      value: '5m',
+                      label: t('bravo.prompt_cache.anthropic_ttl_options.5m'),
+                    },
+                    {
+                      value: '1h',
+                      label: t('bravo.prompt_cache.anthropic_ttl_options.1h'),
+                    },
+                    {
+                      value: 'auto',
+                      label: t('bravo.prompt_cache.anthropic_ttl_options.auto'),
+                    },
+                  ]}
+                  onChange={(anthropicCacheTtl) =>
+                    setDraft((current) => ({
+                      ...current,
+                      anthropicCacheTtl: anthropicCacheTtl as BravoAnthropicCacheTTL,
+                    }))
+                  }
+                  ariaLabelledBy="bravo-anthropic-cache-ttl"
+                  ariaDescribedBy="bravo-anthropic-cache-ttl-help"
+                  disabled={saving}
+                />
+                <span id="bravo-anthropic-cache-ttl-help">
+                  {t('bravo.prompt_cache.anthropic_help')}
+                </span>
+              </div>
+              <div className={styles.providerManagedNote}>
+                <strong>{t('bravo.prompt_cache.openai_title')}</strong>
+                <span>{t('bravo.prompt_cache.openai_help')}</span>
+              </div>
+              <p className={styles.cacheFallbackNote}>{t('bravo.prompt_cache.fallback_help')}</p>
             </div>
           </details>
         </div>

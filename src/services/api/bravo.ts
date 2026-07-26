@@ -17,6 +17,13 @@ export interface BravoUsageSummary {
   averageLatencyMs: number;
 }
 
+export type BravoAnthropicCacheTTL = 'auto' | '5m' | '1h';
+
+export interface BravoPromptCachePolicy {
+  anthropicTtl: BravoAnthropicCacheTTL;
+  openaiMode: 'provider_managed';
+}
+
 export interface BravoProject {
   id: string;
   name: string;
@@ -25,6 +32,7 @@ export interface BravoProject {
   models: string[];
   allowedAuthIds: string[];
   primaryAuthIds: string[];
+  promptCache: BravoPromptCachePolicy;
   usage: BravoUsageSummary;
   createdAt: string;
   updatedAt: string;
@@ -101,6 +109,7 @@ export interface BravoProjectInput {
   models: string[];
   allowedAuthIds?: string[];
   primaryAuthIds?: string[];
+  promptCache: Pick<BravoPromptCachePolicy, 'anthropicTtl'>;
 }
 
 export interface BravoKeyIssueResponse {
@@ -499,6 +508,11 @@ const normalizeQuota = (value: unknown): BravoQuota => {
 
 const normalizeProject = (value: unknown): BravoProject => {
   const source = isRecord(value) ? value : {};
+  const rawPromptCache = source.prompt_cache ?? source.promptCache;
+  const promptCache = isRecord(rawPromptCache) ? rawPromptCache : {};
+  const rawAnthropicTtl = asString(promptCache.anthropic_ttl ?? promptCache.anthropicTtl).trim();
+  const anthropicTtl: BravoAnthropicCacheTTL =
+    rawAnthropicTtl === '5m' || rawAnthropicTtl === '1h' ? rawAnthropicTtl : 'auto';
   return {
     id: asString(source.id).trim(),
     name: asString(source.name).trim(),
@@ -509,6 +523,10 @@ const normalizeProject = (value: unknown): BravoProject => {
     models: asStringArray(source.models),
     allowedAuthIds: asStringArray(source.allowed_auth_ids ?? source.allowedAuthIds),
     primaryAuthIds: asStringArray(source.primary_auth_ids ?? source.primaryAuthIds),
+    promptCache: {
+      anthropicTtl,
+      openaiMode: 'provider_managed',
+    },
     usage: normalizeUsageSummary(source.usage),
     createdAt: asString(source.created_at ?? source.createdAt).trim(),
     updatedAt: asString(source.updated_at ?? source.updatedAt).trim(),
@@ -1125,6 +1143,9 @@ export const serializeBravoProject = (input: BravoProjectInput) => ({
   models: input.models,
   allowed_auth_ids: input.allowedAuthIds ?? [],
   primary_auth_ids: input.primaryAuthIds ?? [],
+  prompt_cache: {
+    anthropic_ttl: input.promptCache.anthropicTtl,
+  },
 });
 
 export const serializeBravoRoute = (route: BravoRoute, preview = false) => ({
