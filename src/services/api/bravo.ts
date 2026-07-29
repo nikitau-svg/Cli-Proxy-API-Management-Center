@@ -69,6 +69,20 @@ export interface BravoQuota {
   modelWeekly: BravoModelQuotaWindow[];
 }
 
+export interface BravoModelIssue {
+  model: string;
+  providerErrorCode: 'credits_required';
+  providerModel: string;
+  providerModelDisplayName: string;
+  providerNoticeTitle: string;
+  providerNoticeText: string;
+  providerDisabledReason: string;
+  providerErrorReason: string;
+  scope: 'model';
+  retryAt: string;
+  observedAt: string;
+}
+
 export interface BravoSubscription {
   authIndex: string;
   authId: string;
@@ -84,6 +98,7 @@ export interface BravoSubscription {
   effectiveTariff: string;
   enabled: boolean;
   health: string;
+  modelIssues: BravoModelIssue[];
   primaryProjectIds: string[];
   quota: BravoQuota;
   usage: BravoUsageSummary;
@@ -571,9 +586,72 @@ const normalizeModelOption = (value: unknown): BravoModelOption | null => {
   };
 };
 
+const safeMachineValue = (value: unknown, maxLength = 128): string => {
+  const normalized = asString(value).trim();
+  if (!normalized || normalized.length > maxLength || !/^[a-zA-Z0-9_.:/-]+$/.test(normalized)) {
+    return '';
+  }
+  return normalized;
+};
+
+const unsafeProviderTextPattern =
+  /(?:request[_\s-]?id|authorization|bearer\s|api[_\s-]?key|access[_\s-]?token|refresh[_\s-]?token|session[_\s-]?(?:key|token)|client[_\s-]?secret|password|passphrase|private[_\s-]?key|payment[_\s-]?method)/i;
+
+const safeProviderText = (value: unknown, maxLength: number): string => {
+  const normalized = decodeDisplayText(value).trim();
+  if (!normalized || unsafeProviderTextPattern.test(normalized)) return '';
+  if (normalized.startsWith('{') || normalized.startsWith('[')) return '';
+  return normalized.slice(0, maxLength);
+};
+
+const safeTimestamp = (value: unknown): string => {
+  const normalized = asString(value).trim();
+  if (!normalized || normalized.length > 64 || !Number.isFinite(Date.parse(normalized))) {
+    return '';
+  }
+  return normalized;
+};
+
+const normalizeModelIssue = (value: unknown): BravoModelIssue | null => {
+  const source = isRecord(value) ? value : {};
+  const model = safeMachineValue(source.model, 256);
+  const providerErrorCode = safeMachineValue(
+    source.provider_error_code ?? source.providerErrorCode
+  );
+  const scope = safeMachineValue(source.scope, 32);
+  if (!model || providerErrorCode !== 'credits_required' || scope !== 'model') return null;
+  return {
+    model,
+    providerErrorCode,
+    providerModel: safeMachineValue(source.provider_model ?? source.providerModel, 256) || model,
+    providerModelDisplayName: safeProviderText(
+      source.provider_model_display_name ?? source.providerModelDisplayName,
+      160
+    ),
+    providerNoticeTitle: safeProviderText(
+      source.provider_notice_title ?? source.providerNoticeTitle,
+      240
+    ),
+    providerNoticeText: safeProviderText(
+      source.provider_notice_text ?? source.providerNoticeText,
+      600
+    ),
+    providerDisabledReason: safeMachineValue(
+      source.provider_disabled_reason ?? source.providerDisabledReason
+    ),
+    providerErrorReason: safeMachineValue(
+      source.provider_error_reason ?? source.providerErrorReason
+    ),
+    scope,
+    retryAt: safeTimestamp(source.retry_at ?? source.retryAt),
+    observedAt: safeTimestamp(source.observed_at ?? source.observedAt),
+  };
+};
+
 const normalizeSubscription = (value: unknown): BravoSubscription | null => {
   const source = isRecord(value) ? value : {};
   const authIndex = asString(source.auth_index ?? source.authIndex).trim();
+  const rawModelIssues = source.model_issues ?? source.modelIssues;
   if (!authIndex) return null;
   return {
     authIndex,
@@ -598,6 +676,11 @@ const normalizeSubscription = (value: unknown): BravoSubscription | null => {
       asString(source.health ?? source.status)
         .trim()
         .toLowerCase() || 'unknown',
+    modelIssues: Array.isArray(rawModelIssues)
+      ? rawModelIssues
+          .map(normalizeModelIssue)
+          .filter((item): item is BravoModelIssue => item !== null)
+      : [],
     primaryProjectIds: asStringArray(source.primary_project_ids ?? source.primaryProjectIds),
     quota: normalizeQuota(source.quota),
     usage: normalizeUsageSummary(source.usage),

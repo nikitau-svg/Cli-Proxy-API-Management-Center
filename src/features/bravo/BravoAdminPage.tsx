@@ -815,6 +815,14 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                             defaultValue: subscription.health,
                           })}
                         </span>
+                        {subscription.modelIssues.length > 0 ? (
+                          <span className={styles.modelIssueBadge}>
+                            <IconAlertTriangle size={13} />
+                            {t('bravo.subscriptions.models_limited', {
+                              count: subscription.modelIssues.length,
+                            })}
+                          </span>
+                        ) : null}
                       </span>
                       <span className={styles.ownerSummary}>
                         {owners.length
@@ -840,6 +848,51 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                       </span>
                     </summary>
                     <div className={styles.subscriptionBody}>
+                      {subscription.modelIssues.length > 0 ? (
+                        <section
+                          className={styles.modelIssues}
+                          aria-label={t('bravo.subscriptions.model_issues_title')}
+                        >
+                          <div className={styles.modelIssuesHeading}>
+                            <IconAlertTriangle size={18} />
+                            <div>
+                              <strong>{t('bravo.subscriptions.model_issues_title')}</strong>
+                              <span>{t('bravo.subscriptions.model_issues_hint')}</span>
+                            </div>
+                          </div>
+                          <div className={styles.modelIssueList}>
+                            {subscription.modelIssues.map((issue, index) => {
+                              const modelName =
+                                issue.providerModelDisplayName ||
+                                issue.providerModel ||
+                                issue.model;
+                              const message =
+                                issue.providerErrorCode === 'credits_required'
+                                  ? t('bravo.subscriptions.model_issues.credits_required', {
+                                      model: modelName,
+                                    })
+                                  : t('bravo.subscriptions.model_issues.unknown', {
+                                      model: modelName,
+                                    });
+                              return (
+                                <div
+                                  className={styles.modelIssue}
+                                  key={[
+                                    issue.model,
+                                    issue.providerErrorCode,
+                                    issue.observedAt,
+                                    index,
+                                  ].join(':')}
+                                >
+                                  <strong>{message}</strong>
+                                  <small>{t('bravo.subscriptions.model_issues_fallback')}</small>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </section>
+                      ) : null}
+
                       <div className={styles.confirmationRow}>
                         <span className={confirmed ? styles.confirmedBadge : styles.unknownBadge}>
                           {confirmed ? (
@@ -853,7 +906,7 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                               })
                             : t('bravo.quota.not_confirmed')}
                         </span>
-                        {subscription.quota.error ? (
+                        {subscription.quota.error && subscription.modelIssues.length === 0 ? (
                           <span className={styles.quotaErrorText}>{subscription.quota.error}</span>
                         ) : null}
                       </div>
@@ -938,6 +991,48 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                             <dt>{t('bravo.usage.weekly')}</dt>
                             <dd>{compactNumber(subscription.usage.weekly.totalTokens, locale)}</dd>
                           </div>
+                          {subscription.quota.error ? (
+                            <div>
+                              <dt>quota_error</dt>
+                              <dd>{subscription.quota.error}</dd>
+                            </div>
+                          ) : null}
+                          {subscription.modelIssues.map((issue, index) => (
+                            <div
+                              className={styles.modelIssueTechnicalRow}
+                              key={[
+                                'technical',
+                                issue.model,
+                                issue.providerErrorCode,
+                                issue.observedAt,
+                                index,
+                              ].join(':')}
+                            >
+                              <dt>{`model_issue[${index}]`}</dt>
+                              <dd>
+                                <span>{`model=${issue.model}`}</span>
+                                <span>{`provider_error_code=${issue.providerErrorCode}`}</span>
+                                {issue.providerDisabledReason ? (
+                                  <span>
+                                    {`provider_disabled_reason=${issue.providerDisabledReason}`}
+                                  </span>
+                                ) : null}
+                                {issue.providerErrorReason ? (
+                                  <span>
+                                    {`provider_error_reason=${issue.providerErrorReason}`}
+                                  </span>
+                                ) : null}
+                                <span>
+                                  {issue.retryAt
+                                    ? `retry_at=${issue.retryAt}`
+                                    : 'retry_at=not_reported'}
+                                </span>
+                                {issue.observedAt ? (
+                                  <span>{`observed_at=${issue.observedAt}`}</span>
+                                ) : null}
+                              </dd>
+                            </div>
+                          ))}
                         </dl>
                       </details>
                     </div>

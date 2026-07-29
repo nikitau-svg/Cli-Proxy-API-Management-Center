@@ -1751,6 +1751,16 @@
       "not_found": "Подходящих подписок нет",
       "no_primary_selected": "Основная подписка не выбрана. Проект получает только общий ресурс.",
       "selected": "Выбрано основных подписок: {{count}}",
+      "models_limited": "Ограничено моделей: {{count}}",
+      "model_issues_title": "Ограничения отдельных моделей",
+      "model_issues_hint": "Другие модели этой подписки могут продолжать работать.",
+      "model_issues_fallback": "Bravo продолжит через другой доступный аккаунт или провайдер.",
+      "model_issues_retry_at": "повтор после {{time}}",
+      "model_issues_retry_unknown": "время восстановления не сообщено",
+      "model_issues": {
+        "credits_required": "У модели {{model}} исчерпан месячный лимит расходов.",
+        "unknown": "{{model}} сейчас недоступна."
+      },
       "health": {
         "ready": "Готова",
         "cooldown": "Cooldown",
