@@ -1799,6 +1799,16 @@
       "not_found": "No matching subscriptions",
       "no_primary_selected": "No primary subscription selected. This project receives shared-only capacity.",
       "selected": "{{count}} primary subscriptions selected",
+      "models_limited": "{{count}} 個模型受限",
+      "model_issues_title": "特定模型限制",
+      "model_issues_hint": "此帳戶的其他模型仍可能正常使用。",
+      "model_issues_fallback": "Bravo 將繼續使用其他可用帳戶或供應商。",
+      "model_issues_retry_at": "{{time}} 後重試",
+      "model_issues_retry_unknown": "供應商未提供恢復時間",
+      "model_issues": {
+        "credits_required": "{{model}} 已達到每月消費限額。",
+        "unknown": "{{model}} 目前無法使用。"
+      },
       "health": {
         "ready": "Ready",
         "cooldown": "Cooldown",

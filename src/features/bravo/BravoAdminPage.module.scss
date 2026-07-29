@@ -269,6 +269,7 @@
 
 .tariffBadge,
 .healthBadge,
+.modelIssueBadge,
 .confirmedBadge,
 .unknownBadge,
 .activeBadge,
@@ -295,6 +296,11 @@
 .unknownBadge {
   color: var(--text-secondary);
   background: var(--bg-tertiary);
+}
+
+.modelIssueBadge {
+  color: var(--amber-text);
+  background: var(--amber-10);
 }
 
 .healthReady,
@@ -350,6 +356,64 @@
   color: var(--danger-color, #ef4444);
   font-size: 12px;
   overflow-wrap: anywhere;
+}
+
+.modelIssues {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--amber-color) 34%, var(--border-color));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--amber-color) 7%, var(--bg-primary));
+}
+
+.modelIssuesHeading {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--amber-text);
+
+  > div {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  strong {
+    color: var(--text-primary);
+    font-size: 13px;
+  }
+
+  span {
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+}
+
+.modelIssueList {
+  display: grid;
+  gap: 8px;
+}
+
+.modelIssue {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--bg-secondary) 78%, transparent);
+
+  strong {
+    color: var(--text-primary);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+
+  small {
+    color: var(--text-secondary);
+    font-size: 11px;
+    overflow-wrap: anywhere;
+  }
 }
 
 .quotaGrid {
@@ -524,6 +588,11 @@
     font-size: 12px;
     overflow-wrap: anywhere;
   }
+}
+
+.modelIssueTechnicalRow dd {
+  display: grid;
+  gap: 3px;
 }
 
 .tariffPolicy {

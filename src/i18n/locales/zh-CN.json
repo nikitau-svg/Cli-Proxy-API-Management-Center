@@ -1773,6 +1773,16 @@
       "not_found": "No matching subscriptions",
       "no_primary_selected": "No primary subscription selected. This project receives shared-only capacity.",
       "selected": "{{count}} primary subscriptions selected",
+      "models_limited": "{{count}} 个模型受限",
+      "model_issues_title": "特定模型限制",
+      "model_issues_hint": "此账户的其他模型仍可能正常使用。",
+      "model_issues_fallback": "Bravo 将继续使用其他可用账户或供应商。",
+      "model_issues_retry_at": "{{time}} 后重试",
+      "model_issues_retry_unknown": "供应商未提供恢复时间",
+      "model_issues": {
+        "credits_required": "{{model}} 已达到每月消费限额。",
+        "unknown": "{{model}} 当前不可用。"
+      },
       "health": {
         "ready": "Ready",
         "cooldown": "Cooldown",

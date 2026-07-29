@@ -1773,6 +1773,16 @@
       "not_found": "No matching subscriptions",
       "no_primary_selected": "No primary subscription selected. This project receives shared-only capacity.",
       "selected": "{{count}} primary subscriptions selected",
+      "models_limited": "{{count}} model restrictions",
+      "model_issues_title": "Model-specific restrictions",
+      "model_issues_hint": "This account may still serve its other models.",
+      "model_issues_fallback": "Bravo will continue with another eligible account or provider.",
+      "model_issues_retry_at": "retry after {{time}}",
+      "model_issues_retry_unknown": "reset time is not reported",
+      "model_issues": {
+        "credits_required": "{{model}} reached its monthly spend limit.",
+        "unknown": "{{model}} is currently unavailable."
+      },
       "health": {
         "ready": "Ready",
         "cooldown": "Cooldown",
