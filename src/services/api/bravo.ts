@@ -154,6 +154,7 @@ export interface BravoAnalyticsUsage {
   failures: number;
   latencyMs: number;
   averageLatencyMs: number;
+  averageTtftMs?: number;
   failureRatePercent: number;
 }
 
@@ -253,6 +254,59 @@ export interface BravoAnalyticsQuery {
   subscriptionId?: string;
   provider?: string;
   model?: string;
+}
+
+export interface BravoTraceAttempt {
+  ordinal: number;
+  at: string;
+  provider: string;
+  model: string;
+  subscriptionId: string;
+  subscriptionLabel: string;
+  status: number;
+  success: boolean;
+  outcome: string;
+  decision: string;
+  committed: boolean;
+  requestedEffort: string;
+  effectiveEffort: string;
+  latencyMs: number | null;
+  ttfbMs: number | null;
+  firstContentMs: number | null;
+  errorCode: string;
+  errorMessage: string;
+  failureClass: string;
+  retryAfter: string;
+  requiredInputTokens: number | null;
+  supportedInputTokens: number | null;
+}
+
+export interface BravoTrace {
+  traceId: string;
+  startedAt: string;
+  projectId: string;
+  logicalModel: string;
+  status: number;
+  success: boolean;
+  outcome: string;
+  finalCode: string;
+  finalMessage: string;
+  clientAction: string;
+  totalLatencyMs: number | null;
+  attempts: BravoTraceAttempt[];
+}
+
+export interface BravoTracesResponse {
+  schemaVersion: number;
+  retentionDays: number;
+  warning: string;
+  traces: BravoTrace[];
+}
+
+export interface BravoTracesQuery {
+  projectId?: string;
+  errorsOnly?: boolean;
+  limit?: number;
 }
 
 export interface BravoRouteCandidate {
@@ -388,6 +442,12 @@ const asFiniteNumber = (value: unknown, fallback = 0): number => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const asOptionalFiniteNumber = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = asFiniteNumber(value, NaN);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 const asNullablePercent = (value: unknown): number | null => {
   if (value === null || value === undefined || value === '') return null;
   const parsed = asFiniteNumber(value, NaN);
@@ -481,6 +541,7 @@ export const normalizeBravoAnalyticsUsage = (value: unknown): BravoAnalyticsUsag
     inputTokens + outputTokens + reasoningTokens
   );
   const latencyMs = asFiniteNumber(source.latency_ms ?? source.latencyMs);
+  const averageTtftMs = asOptionalFiniteNumber(source.average_ttft_ms ?? source.averageTtftMs);
   return {
     requests,
     inputTokens,
@@ -496,6 +557,7 @@ export const normalizeBravoAnalyticsUsage = (value: unknown): BravoAnalyticsUsag
       source.average_latency_ms ?? source.averageLatencyMs,
       requests > 0 ? latencyMs / requests : 0
     ),
+    ...(averageTtftMs === null ? {} : { averageTtftMs }),
     failureRatePercent: asFiniteNumber(
       source.failure_rate_percent ?? source.failureRatePercent,
       requests > 0 ? (failures / requests) * 100 : 0
@@ -850,6 +912,84 @@ export const normalizeBravoAnalyticsResponse = (value: unknown): BravoAnalyticsR
       ),
     },
     generatedAt: asString(source.generated_at ?? source.generatedAt).trim(),
+  };
+};
+
+const normalizeBravoTraceAttempt = (value: unknown): BravoTraceAttempt | null => {
+  const source = isRecord(value) ? value : {};
+  const provider = asString(source.provider).trim().toLowerCase();
+  const model = asString(source.model).trim();
+  if (!provider && !model) return null;
+  return {
+    ordinal: asFiniteNumber(source.ordinal ?? source.attempt_ordinal ?? source.attemptOrdinal),
+    at: asString(source.at ?? source.started_at ?? source.startedAt).trim(),
+    provider,
+    model,
+    subscriptionId: asString(source.subscription_id ?? source.subscriptionId).trim(),
+    subscriptionLabel: asString(source.subscription_label ?? source.subscriptionLabel).trim(),
+    status: asFiniteNumber(source.status),
+    success: source.success === true,
+    outcome: asString(source.outcome).trim(),
+    decision: asString(source.decision).trim(),
+    committed: source.committed === true,
+    requestedEffort: asString(source.requested_effort ?? source.requestedEffort).trim(),
+    effectiveEffort: asString(source.effective_effort ?? source.effectiveEffort).trim(),
+    latencyMs: asOptionalFiniteNumber(source.latency_ms ?? source.latencyMs),
+    ttfbMs: asOptionalFiniteNumber(source.ttfb_ms ?? source.ttfbMs),
+    firstContentMs: asOptionalFiniteNumber(source.first_content_ms ?? source.firstContentMs),
+    errorCode: asString(source.error_code ?? source.errorCode).trim(),
+    // The backend has already redacted and localized this field. Do not decode or translate it.
+    errorMessage: asString(source.error_message ?? source.errorMessage),
+    failureClass: asString(source.failure_class ?? source.failureClass).trim(),
+    retryAfter: asString(source.retry_after ?? source.retryAfter).trim(),
+    requiredInputTokens: asOptionalFiniteNumber(
+      source.required_input_tokens ?? source.requiredInputTokens
+    ),
+    supportedInputTokens: asOptionalFiniteNumber(
+      source.supported_input_tokens ?? source.supportedInputTokens
+    ),
+  };
+};
+
+const normalizeBravoTrace = (value: unknown): BravoTrace | null => {
+  const source = isRecord(value) ? value : {};
+  const traceId = asString(source.trace_id ?? source.traceId).trim();
+  if (!traceId) return null;
+  const rawAttempts = source.attempts;
+  return {
+    traceId,
+    startedAt: asString(source.started_at ?? source.startedAt).trim(),
+    projectId: asString(source.project_id ?? source.projectId).trim(),
+    logicalModel: asString(source.logical_model ?? source.logicalModel).trim(),
+    status: asFiniteNumber(source.status ?? source.final_status ?? source.finalStatus),
+    success: source.success === true,
+    outcome: asString(source.outcome).trim(),
+    finalCode: asString(source.final_code ?? source.finalCode).trim(),
+    // The final message is a reviewed, safe Russian explanation supplied by the server.
+    finalMessage: asString(source.final_message ?? source.finalMessage),
+    clientAction: asString(source.client_action ?? source.clientAction).trim(),
+    totalLatencyMs: asOptionalFiniteNumber(
+      source.total_latency_ms ?? source.totalLatencyMs ?? source.route_duration_ms
+    ),
+    attempts: Array.isArray(rawAttempts)
+      ? rawAttempts
+          .map(normalizeBravoTraceAttempt)
+          .filter((attempt): attempt is BravoTraceAttempt => attempt !== null)
+      : [],
+  };
+};
+
+export const normalizeBravoTracesResponse = (value: unknown): BravoTracesResponse => {
+  const source = isRecord(value) ? value : {};
+  return {
+    schemaVersion: asFiniteNumber(source.schema_version ?? source.schemaVersion, 1),
+    retentionDays: asFiniteNumber(source.retention_days ?? source.retentionDays),
+    warning: asString(source.warning),
+    traces: Array.isArray(source.traces)
+      ? source.traces
+          .map(normalizeBravoTrace)
+          .filter((trace): trace is BravoTrace => trace !== null)
+      : [],
   };
 };
 
@@ -1369,6 +1509,18 @@ export const bravoApi = {
           ...(query.subscriptionId ? { subscription_id: query.subscriptionId } : {}),
           ...(query.provider ? { provider: query.provider } : {}),
           ...(query.model ? { model: query.model } : {}),
+        },
+      })
+    );
+  },
+
+  async getTraces(query: BravoTracesQuery = {}): Promise<BravoTracesResponse> {
+    return normalizeBravoTracesResponse(
+      await apiClient.get('/bravo/traces', {
+        params: {
+          project_id: query.projectId ?? '',
+          errors_only: query.errorsOnly === true,
+          limit: query.limit ?? 50,
         },
       })
     );

@@ -1,7 +1,14 @@
 import { describe, expect, mock, test } from 'bun:test';
 
+const apiGetCalls: Array<{ url: string; config: unknown }> = [];
+
 mock.module('../src/services/api/client', () => ({
-  apiClient: {},
+  apiClient: {
+    get: async (url: string, config: unknown) => {
+      apiGetCalls.push({ url, config });
+      return { traces: [] };
+    },
+  },
 }));
 
 const bravoModule = import('../src/services/api/bravo');
@@ -241,6 +248,7 @@ describe('Bravo API normalization', () => {
         output_tokens: 50,
         reasoning_tokens: 25,
         latency_ms: 5000,
+        average_ttft_ms: 280,
       },
       series: [
         {
@@ -274,12 +282,123 @@ describe('Bravo API normalization', () => {
     expect(result.breakdownCoverageFrom).toBe('2026-07-05T00:00:00Z');
     expect(result.summary.totalTokens).toBe(175);
     expect(result.summary.averageLatencyMs).toBe(500);
+    expect(result.summary.averageTtftMs).toBe(280);
     expect(result.summary.failureRatePercent).toBe(20);
     expect(result.series[0]?.usage.totalTokens).toBe(60);
     expect(result.subscriptionTimeline).toEqual([]);
     expect(result.breakdown.subscriptions[0]?.subscriptionId).toBe('sub_safe');
     expect(result.breakdown.projectSubscriptionModels[0]?.logicalModel).toBe('bravo/sol');
     expect(result.breakdown.projectSubscriptionModels[0]?.model).toBe('gpt-5.6-sol');
+  });
+
+  test('keeps TTFT optional for older analytics responses', async () => {
+    const { normalizeBravoAnalyticsResponse } = await bravoModule;
+    const result = normalizeBravoAnalyticsResponse({
+      summary: { requests: 1, latency_ms: 500 },
+    });
+
+    expect(result.summary.averageTtftMs).toBeUndefined();
+  });
+
+  test('normalizes safe route traces without inventing sensitive fields', async () => {
+    const { normalizeBravoTracesResponse } = await bravoModule;
+    const result = normalizeBravoTracesResponse({
+      schema_version: 1,
+      retention_days: 30,
+      warning: 'История восстановлена из последнего безопасного снимка.',
+      traces: [
+        {
+          trace_id: 'trace_safe',
+          started_at: '2026-08-07T10:00:00Z',
+          project_id: 'project-a',
+          logical_model: 'bravo/opus',
+          status: 502,
+          success: false,
+          outcome: 'failed',
+          client_action: 'retry',
+          final_message: 'Все доступные маршруты временно недоступны.',
+          total_latency_ms: 3200,
+          attempts: [
+            {
+              ordinal: 1,
+              at: '2026-08-07T10:00:01Z',
+              provider: 'claude',
+              model: 'claude-opus-4-8',
+              subscription_id: 'claude:team-a',
+              subscription_label: 'Team A',
+              status: 429,
+              outcome: 'failed',
+              decision: 'fallback',
+              committed: false,
+              requested_effort: 'high',
+              effective_effort: 'xhigh',
+              failure_class: 'quota',
+              retry_after: '60',
+              error_message: 'Лимит подписки временно исчерпан.',
+              required_input_tokens: 190000,
+              supported_input_tokens: 128000,
+              latency_ms: 1200,
+              ttfb_ms: 420,
+              first_content_ms: 650,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(result.retentionDays).toBe(30);
+    expect(result.warning).toBe('История восстановлена из последнего безопасного снимка.');
+    expect(result.traces[0]).toMatchObject({
+      traceId: 'trace_safe',
+      projectId: 'project-a',
+      logicalModel: 'bravo/opus',
+      status: 502,
+      success: false,
+      outcome: 'failed',
+      clientAction: 'retry',
+      totalLatencyMs: 3200,
+      finalMessage: 'Все доступные маршруты временно недоступны.',
+    });
+    expect(result.traces[0]?.attempts[0]).toEqual({
+      ordinal: 1,
+      at: '2026-08-07T10:00:01Z',
+      provider: 'claude',
+      model: 'claude-opus-4-8',
+      subscriptionId: 'claude:team-a',
+      subscriptionLabel: 'Team A',
+      status: 429,
+      success: false,
+      outcome: 'failed',
+      decision: 'fallback',
+      committed: false,
+      requestedEffort: 'high',
+      effectiveEffort: 'xhigh',
+      latencyMs: 1200,
+      ttfbMs: 420,
+      firstContentMs: 650,
+      errorCode: '',
+      errorMessage: 'Лимит подписки временно исчерпан.',
+      failureClass: 'quota',
+      retryAfter: '60',
+      requiredInputTokens: 190000,
+      supportedInputTokens: 128000,
+    });
+  });
+
+  test('requests safe route traces with the documented filters and bounded limit', async () => {
+    const { bravoApi } = await bravoModule;
+    await bravoApi.getTraces({ projectId: 'project-a', errorsOnly: true, limit: 25 });
+
+    expect(apiGetCalls.pop()).toEqual({
+      url: '/bravo/traces',
+      config: {
+        params: {
+          project_id: 'project-a',
+          errors_only: true,
+          limit: 25,
+        },
+      },
+    });
   });
 
   test('normalizes the optional subscription timeline without trusting malformed rows', async () => {

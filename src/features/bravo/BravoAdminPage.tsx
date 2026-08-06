@@ -38,6 +38,7 @@ import { getErrorMessage } from '@/utils/helpers';
 import { formatBravoQuotaReset } from './bravoQuotaPresentation';
 import { BravoCompatibilityPanel } from './BravoCompatibilityPanel';
 import { BravoProjectAnalytics } from './BravoProjectAnalytics';
+import { BravoRouteTracePanel } from './BravoRouteTracePanel';
 import { BravoRouteEditor } from './BravoRouteEditor';
 import { bravoProviderLabel, formatBravoSubscriptionRecord } from './bravoSubscriptionPresentation';
 import styles from './BravoAdminPage.module.scss';
@@ -1119,6 +1120,8 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
       </details>
 
       <BravoRouteEditor />
+
+      <BravoRouteTracePanel projects={data.projects} />
 
       <div className={styles.projectsHeading}>
         <div>

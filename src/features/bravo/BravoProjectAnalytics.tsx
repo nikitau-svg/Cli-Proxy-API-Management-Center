@@ -70,7 +70,7 @@ const safeFilePart = (value: string): string =>
     .replace(/^-+|-+$/g, '') || 'project';
 
 const usageMetrics: Array<{
-  key: 'requests' | 'totalTokens' | 'failures' | 'averageLatencyMs';
+  key: 'requests' | 'totalTokens' | 'failures' | 'averageLatencyMs' | 'averageTtftMs';
   label: string;
   inverse?: boolean;
 }> = [
@@ -404,6 +404,10 @@ export function BravoProjectAnalytics({ project, subscriptions }: BravoProjectAn
   const empty = state.current ? analyticsUsageIsEmpty(state.current.summary) : false;
   const visibleTimelineGroups = timelineGroups.slice(0, 8);
   const olderTimelineGroups = timelineGroups.slice(8);
+  const visibleUsageMetrics =
+    state.current?.summary.averageTtftMs === undefined
+      ? usageMetrics
+      : [...usageMetrics, { key: 'averageTtftMs' as const, label: 'ttft', inverse: true }];
 
   const renderTimelineGroups = (groups: typeof timelineGroups) =>
     groups.map((group) => (
@@ -551,20 +555,20 @@ export function BravoProjectAnalytics({ project, subscriptions }: BravoProjectAn
           {state.current ? (
             <>
               <div className={styles.kpis}>
-                {usageMetrics.map((metric) => (
+                {visibleUsageMetrics.map((metric) => (
                   <div className={styles.kpi} key={metric.key}>
                     {metric.key === 'averageLatencyMs' ? (
                       <ResponseTimeLabel
-                        label={t('bravo.analytics.metrics.response_time')}
+                        label={t('bravo.analytics.metrics.full_request_duration')}
                         help={t('bravo.analytics.response_time_help')}
                       />
                     ) : (
                       <span>{t(`bravo.analytics.metrics.${metric.label}`)}</span>
                     )}
                     <strong>
-                      {metric.key === 'averageLatencyMs'
+                      {metric.key === 'averageLatencyMs' || metric.key === 'averageTtftMs'
                         ? formatBravoResponseTime(
-                            state.current?.summary.averageLatencyMs ?? 0,
+                            state.current?.summary[metric.key] ?? 0,
                             locale
                           )
                         : formatNumber(state.current?.summary[metric.key] ?? 0, locale)}
@@ -573,7 +577,7 @@ export function BravoProjectAnalytics({ project, subscriptions }: BravoProjectAn
                       <small>
                         <Delta
                           current={state.current?.summary[metric.key] ?? 0}
-                          previous={state.previous.summary[metric.key]}
+                          previous={state.previous.summary[metric.key] ?? 0}
                           inverse={metric.inverse}
                           locale={locale}
                           unavailable={t('bravo.analytics.no_baseline')}
@@ -711,7 +715,7 @@ export function BravoProjectAnalytics({ project, subscriptions }: BravoProjectAn
                             <th scope="col">{t('bravo.analytics.metrics.failures')}</th>
                             <th scope="col">
                               <ResponseTimeLabel
-                                label={t('bravo.analytics.metrics.response_time')}
+                                label={t('bravo.analytics.metrics.full_request_duration')}
                                 help={t('bravo.analytics.response_time_help')}
                               />
                             </th>
