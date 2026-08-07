@@ -81,6 +81,14 @@ const emptyData = (): BravoProjectsResponse => ({
   models: [],
   subscriptions: [],
   tariffs: [],
+  quotaPolling: {
+    usageIntervalSeconds: 900,
+    minimumIntervalSeconds: 300,
+    maximumIntervalSeconds: 86400,
+    profileIntervalSeconds: 21600,
+    usageRequests: { attempts: 0, success: 0, failure: 0 },
+    profileRequests: { attempts: 0, success: 0, failure: 0 },
+  },
 });
 
 const emptyDraft = (): ProjectDraft => ({
@@ -212,6 +220,8 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
   const [error, setError] = useState('');
   const [quotaRefreshing, setQuotaRefreshing] = useState(false);
   const [quotaError, setQuotaError] = useState('');
+  const [pollingMinutes, setPollingMinutes] = useState('15');
+  const [pollingSaving, setPollingSaving] = useState(false);
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [draft, setDraft] = useState<ProjectDraft>(emptyDraft);
   const [modelFilter, setModelFilter] = useState('');
@@ -289,6 +299,10 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
       )
     );
   }, [data.tariffs]);
+
+  useEffect(() => {
+    setPollingMinutes(String(Math.round(data.quotaPolling.usageIntervalSeconds / 60)));
+  }, [data.quotaPolling.usageIntervalSeconds]);
 
   const activeCount = useMemo(
     () => data.projects.filter((project) => project.enabled).length,
@@ -616,6 +630,31 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
     }
   };
 
+  const saveQuotaPolling = async () => {
+    const minutes = Number(pollingMinutes);
+    const minimum = Math.ceil(data.quotaPolling.minimumIntervalSeconds / 60);
+    const maximum = Math.floor(data.quotaPolling.maximumIntervalSeconds / 60);
+    if (!Number.isInteger(minutes) || minutes < minimum || minutes > maximum) {
+      setQuotaError(t('bravo.quota.polling_validation', { minimum, maximum }));
+      return;
+    }
+    setPollingSaving(true);
+    setQuotaError('');
+    try {
+      const applied = await bravoApi.updateQuotaPolling(minutes * 60);
+      if (!applied) {
+        setQuotaError(t('bravo.quota.polling_apply_timeout'));
+        return;
+      }
+      await loadOverview();
+      showNotification(t('bravo.quota.polling_saved'), 'success');
+    } catch (err: unknown) {
+      setQuotaError(getErrorMessage(err, t('bravo.quota.polling_save_failed')));
+    } finally {
+      setPollingSaving(false);
+    }
+  };
+
   const updateSubscription = async (
     subscription: BravoSubscription,
     patch: { tariff?: string; enabled?: boolean }
@@ -778,6 +817,50 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
           <div className={styles.liveRegion} role="status" aria-live="polite">
             {quotaRefreshing ? t('bravo.quota.refreshing') : ''}
           </div>
+          <div className={styles.pollingPanel}>
+            <div className={styles.pollingCopy}>
+              <strong>{t('bravo.quota.polling_title')}</strong>
+              <span>{t('bravo.quota.polling_hint')}</span>
+            </div>
+            <div className={styles.pollingControl}>
+              <Input
+                type="number"
+                min={Math.ceil(data.quotaPolling.minimumIntervalSeconds / 60)}
+                max={Math.floor(data.quotaPolling.maximumIntervalSeconds / 60)}
+                step={1}
+                label={t('bravo.quota.polling_minutes')}
+                value={pollingMinutes}
+                onChange={(event) => setPollingMinutes(event.target.value)}
+                disabled={pollingSaving}
+              />
+              <Button
+                variant="secondary"
+                onClick={() => void saveQuotaPolling()}
+                loading={pollingSaving}
+                disabled={!connected}
+              >
+                {t('bravo.quota.polling_save')}
+              </Button>
+            </div>
+            {Number(pollingMinutes) < 10 ? (
+              <div className={styles.pollingWarning} role="note">
+                <IconAlertTriangle size={16} />
+                {t('bravo.quota.polling_warning')}
+              </div>
+            ) : null}
+            <div className={styles.pollingStats}>
+              <span>
+                {t('bravo.quota.polling_usage_requests', {
+                  ...data.quotaPolling.usageRequests,
+                })}
+              </span>
+              <span>
+                {t('bravo.quota.polling_profile_requests', {
+                  ...data.quotaPolling.profileRequests,
+                })}
+              </span>
+            </div>
+          </div>
 
           {data.subscriptions.length === 0 ? (
             <div className={styles.inlineEmpty}>{t('bravo.subscriptions.empty')}</div>
@@ -910,6 +993,12 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                         {subscription.quota.error && subscription.modelIssues.length === 0 ? (
                           <span className={styles.quotaErrorText}>{subscription.quota.error}</span>
                         ) : null}
+                        <span className={styles.accountPollingCount}>
+                          {t('bravo.quota.account_polling_requests', {
+                            usage: subscription.quota.refresh.attemptCount,
+                            profile: subscription.profileRefresh.attemptCount,
+                          })}
+                        </span>
                       </div>
 
                       <div className={styles.quotaGrid}>

@@ -64,9 +64,35 @@ export interface BravoQuota {
   confidence: string;
   observedAt: string;
   error: string;
+  refresh: BravoQuotaRefreshState;
   session: BravoQuotaWindow;
   weekly: BravoQuotaWindow;
   modelWeekly: BravoModelQuotaWindow[];
+}
+
+export interface BravoQuotaRefreshState {
+  attemptCount: number;
+  successCount: number;
+  failureCount: number;
+  lastAttemptAt: string;
+  lastSuccessAt: string;
+  lastFailureAt: string;
+  nextAttemptAt: string;
+}
+
+export interface BravoQuotaRequestCounters {
+  attempts: number;
+  success: number;
+  failure: number;
+}
+
+export interface BravoQuotaPolling {
+  usageIntervalSeconds: number;
+  minimumIntervalSeconds: number;
+  maximumIntervalSeconds: number;
+  profileIntervalSeconds: number;
+  usageRequests: BravoQuotaRequestCounters;
+  profileRequests: BravoQuotaRequestCounters;
 }
 
 export interface BravoModelIssue {
@@ -101,6 +127,7 @@ export interface BravoSubscription {
   modelIssues: BravoModelIssue[];
   primaryProjectIds: string[];
   quota: BravoQuota;
+  profileRefresh: BravoQuotaRefreshState;
   usage: BravoUsageSummary;
 }
 
@@ -117,6 +144,7 @@ export interface BravoProjectsResponse {
   models: BravoModelOption[];
   subscriptions: BravoSubscription[];
   tariffs: BravoTariff[];
+  quotaPolling: BravoQuotaPolling;
 }
 
 export interface BravoProjectInput {
@@ -590,6 +618,7 @@ const normalizeQuota = (value: unknown): BravoQuota => {
       source.observed_at ?? source.observedAt ?? source.refreshed_at ?? source.refreshedAt
     ).trim(),
     error: asString(source.error).trim(),
+    refresh: normalizeQuotaRefreshState(source.refresh),
     session: normalizeQuotaWindow(source.session),
     weekly: normalizeQuotaWindow(source.weekly),
     modelWeekly: Array.isArray(rawModelWeekly)
@@ -601,6 +630,54 @@ const normalizeQuota = (value: unknown): BravoQuota => {
           };
         })
       : [],
+  };
+};
+
+const normalizeQuotaRefreshState = (value: unknown): BravoQuotaRefreshState => {
+  const source = isRecord(value) ? value : {};
+  return {
+    attemptCount: asFiniteNumber(source.attempt_count ?? source.attemptCount),
+    successCount: asFiniteNumber(source.success_count ?? source.successCount),
+    failureCount: asFiniteNumber(source.failure_count ?? source.failureCount),
+    lastAttemptAt: safeTimestamp(source.last_attempt_at ?? source.lastAttemptAt),
+    lastSuccessAt: safeTimestamp(source.last_success_at ?? source.lastSuccessAt),
+    lastFailureAt: safeTimestamp(source.last_failure_at ?? source.lastFailureAt),
+    nextAttemptAt: safeTimestamp(source.next_attempt_at ?? source.nextAttemptAt),
+  };
+};
+
+const normalizeQuotaRequestCounters = (value: unknown): BravoQuotaRequestCounters => {
+  const source = isRecord(value) ? value : {};
+  return {
+    attempts: asFiniteNumber(source.attempts),
+    success: asFiniteNumber(source.success),
+    failure: asFiniteNumber(source.failure),
+  };
+};
+
+const normalizeQuotaPolling = (value: unknown): BravoQuotaPolling => {
+  const source = isRecord(value) ? value : {};
+  return {
+    usageIntervalSeconds: asFiniteNumber(
+      source.usage_interval_seconds ?? source.usageIntervalSeconds,
+      900
+    ),
+    minimumIntervalSeconds: asFiniteNumber(
+      source.minimum_interval_seconds ?? source.minimumIntervalSeconds,
+      300
+    ),
+    maximumIntervalSeconds: asFiniteNumber(
+      source.maximum_interval_seconds ?? source.maximumIntervalSeconds,
+      86400
+    ),
+    profileIntervalSeconds: asFiniteNumber(
+      source.profile_interval_seconds ?? source.profileIntervalSeconds,
+      21600
+    ),
+    usageRequests: normalizeQuotaRequestCounters(source.usage_requests ?? source.usageRequests),
+    profileRequests: normalizeQuotaRequestCounters(
+      source.profile_requests ?? source.profileRequests
+    ),
   };
 };
 
@@ -745,6 +822,7 @@ const normalizeSubscription = (value: unknown): BravoSubscription | null => {
       : [],
     primaryProjectIds: asStringArray(source.primary_project_ids ?? source.primaryProjectIds),
     quota: normalizeQuota(source.quota),
+    profileRefresh: normalizeQuotaRefreshState(source.profile_refresh ?? source.profileRefresh),
     usage: normalizeUsageSummary(source.usage),
   };
 };
@@ -1385,6 +1463,7 @@ export const normalizeBravoProjectsResponse = (value: unknown): BravoProjectsRes
     tariffs: Array.isArray(source.tariffs)
       ? source.tariffs.map(normalizeTariff).filter((item): item is BravoTariff => item !== null)
       : [],
+    quotaPolling: normalizeQuotaPolling(source.quota_polling ?? source.quotaPolling),
   };
 };
 
@@ -1406,6 +1485,7 @@ export const mergeBravoResponses = (
     subscriptionsResponse.tariffs.length > 0
       ? subscriptionsResponse.tariffs
       : projectsResponse.tariffs,
+  quotaPolling: subscriptionsResponse.quotaPolling,
 });
 
 const normalizeKeyIssueResponse = (value: unknown): BravoKeyIssueResponse => {
@@ -1439,6 +1519,9 @@ export const serializeBravoRoute = (route: BravoRoute, preview = false) => ({
     })),
   ...(preview ? { preview: true } : {}),
 });
+
+const waitForBravoReconfigure = (milliseconds: number): Promise<void> =>
+  new Promise((resolve) => globalThis.setTimeout(resolve, milliseconds));
 
 export const bravoApi = {
   async listProjects(): Promise<BravoProjectsResponse> {
@@ -1496,6 +1579,23 @@ export const bravoApi = {
 
   async refreshQuotas(): Promise<void> {
     await apiClient.post('/bravo/quotas/refresh', {});
+  },
+
+  async updateQuotaPolling(intervalSeconds: number): Promise<boolean> {
+    await apiClient.patch('/plugins/bravo/config', {
+      quota_usage_refresh_seconds: intervalSeconds,
+    });
+    // Core persists generic plugin config before its asynchronous hot reload
+    // completes. Wait for Bravo's effective runtime view so the following page
+    // refresh cannot flash the previous interval back into the form.
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await waitForBravoReconfigure(100);
+      const effective = normalizeBravoProjectsResponse(
+        await apiClient.get('/bravo/subscriptions')
+      );
+      if (effective.quotaPolling.usageIntervalSeconds === intervalSeconds) return true;
+    }
+    return false;
   },
 
   async getAnalytics(query: BravoAnalyticsQuery): Promise<BravoAnalyticsResponse> {

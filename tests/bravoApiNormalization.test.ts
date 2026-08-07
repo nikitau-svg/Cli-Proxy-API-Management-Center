@@ -117,6 +117,43 @@ describe('Bravo API normalization', () => {
     expect(quota?.modelWeekly[0]?.resetAt).toBeNull();
   });
 
+  test('normalizes polling settings and persistent provider request counters', async () => {
+    const { normalizeBravoProjectsResponse } = await bravoModule;
+    const result = normalizeBravoProjectsResponse({
+      quota_polling: {
+        usage_interval_seconds: 900,
+        minimum_interval_seconds: 300,
+        maximum_interval_seconds: 86400,
+        profile_interval_seconds: 21600,
+        usage_requests: { attempts: 12, success: 9, failure: 3 },
+        profile_requests: { attempts: 4, success: 4, failure: 0 },
+      },
+      subscriptions: [
+        {
+          auth_index: 'claude:polling',
+          quota: {
+            refresh: {
+              attempt_count: 8,
+              success_count: 6,
+              failure_count: 2,
+              last_attempt_at: '2026-08-07T12:00:00Z',
+            },
+          },
+          profile_refresh: { attempt_count: 3, success_count: 3 },
+        },
+      ],
+    });
+
+    expect(result.quotaPolling.usageIntervalSeconds).toBe(900);
+    expect(result.quotaPolling.usageRequests).toEqual({
+      attempts: 12,
+      success: 9,
+      failure: 3,
+    });
+    expect(result.subscriptions[0]?.quota.refresh.attemptCount).toBe(8);
+    expect(result.subscriptions[0]?.profileRefresh.successCount).toBe(3);
+  });
+
   test('merges project and pool endpoints without inventing missing collections', async () => {
     const { mergeBravoResponses, normalizeBravoProjectsResponse } = await bravoModule;
     const projects = normalizeBravoProjectsResponse({

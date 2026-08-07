@@ -217,6 +217,56 @@
   }
 }
 
+.pollingPanel {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(260px, auto);
+  align-items: end;
+  gap: 12px 18px;
+  padding: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-primary) 48%, var(--bg-secondary));
+}
+
+.pollingCopy {
+  display: grid;
+  gap: 4px;
+
+  strong {
+    color: var(--text-primary);
+  }
+
+  span {
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+}
+
+.pollingControl {
+  display: grid;
+  grid-template-columns: minmax(130px, 170px) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.pollingWarning {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--amber-color, #f59e0b);
+  font-size: 12px;
+}
+
+.pollingStats {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px 16px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
 .subscriptionList {
   display: grid;
   gap: 8px;
@@ -356,6 +406,11 @@
   color: var(--danger-color, #ef4444);
   font-size: 12px;
   overflow-wrap: anywhere;
+}
+
+.accountPollingCount {
+  color: var(--text-tertiary);
+  font-size: 12px;
 }
 
 .modelIssues {
@@ -1172,6 +1227,7 @@
   }
 
   .poolToolbar,
+  .pollingPanel,
   .projectActions {
     align-items: stretch;
     flex-direction: column;
@@ -1179,6 +1235,22 @@
 
   .poolToolbar button {
     width: 100%;
+  }
+
+  .pollingPanel {
+    grid-template-columns: 1fr;
+  }
+
+  .pollingControl {
+    grid-template-columns: 1fr;
+
+    button {
+      width: 100%;
+    }
+  }
+
+  .pollingStats {
+    justify-content: flex-start;
   }
 
   .project > summary {
