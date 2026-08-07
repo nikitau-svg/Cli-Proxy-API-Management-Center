@@ -217,6 +217,56 @@
   }
 }
 
+.pollingPanel {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(260px, auto);
+  align-items: end;
+  gap: 12px 18px;
+  padding: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-primary) 48%, var(--bg-secondary));
+}
+
+.pollingCopy {
+  display: grid;
+  gap: 4px;
+
+  strong {
+    color: var(--text-primary);
+  }
+
+  span {
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+}
+
+.pollingControl {
+  display: grid;
+  grid-template-columns: minmax(130px, 170px) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.pollingWarning {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--amber-color, #f59e0b);
+  font-size: 12px;
+}
+
+.pollingStats {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px 16px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
 .subscriptionList {
   display: grid;
   gap: 8px;
@@ -228,10 +278,9 @@
 
   > summary {
     display: grid;
-    grid-template-columns: minmax(240px, 1.35fr) auto minmax(130px, 0.65fr) minmax(
-        180px,
-        0.8fr
-      ) 22px;
+    grid-template-columns:
+      minmax(240px, 1.35fr) auto minmax(130px, 0.65fr) minmax(180px, 0.8fr)
+      22px;
     align-items: center;
     gap: 12px;
     min-height: 64px;
@@ -270,6 +319,7 @@
 
 .tariffBadge,
 .healthBadge,
+.modelIssueBadge,
 .confirmedBadge,
 .unknownBadge,
 .activeBadge,
@@ -296,6 +346,11 @@
 .unknownBadge {
   color: var(--text-secondary);
   background: var(--bg-tertiary);
+}
+
+.modelIssueBadge {
+  color: var(--amber-text);
+  background: var(--amber-10);
 }
 
 .healthReady,
@@ -351,6 +406,69 @@
   color: var(--danger-color, #ef4444);
   font-size: 12px;
   overflow-wrap: anywhere;
+}
+
+.accountPollingCount {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.modelIssues {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--amber-color) 34%, var(--border-color));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--amber-color) 7%, var(--bg-primary));
+}
+
+.modelIssuesHeading {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--amber-text);
+
+  > div {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  strong {
+    color: var(--text-primary);
+    font-size: 13px;
+  }
+
+  span {
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+}
+
+.modelIssueList {
+  display: grid;
+  gap: 8px;
+}
+
+.modelIssue {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--bg-secondary) 78%, transparent);
+
+  strong {
+    color: var(--text-primary);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+
+  small {
+    color: var(--text-secondary);
+    font-size: 11px;
+    overflow-wrap: anywhere;
+  }
 }
 
 .quotaGrid {
@@ -527,6 +645,11 @@
   }
 }
 
+.modelIssueTechnicalRow dd {
+  display: grid;
+  gap: 3px;
+}
+
 .tariffPolicy {
   margin-top: 5px;
   border-radius: 12px;
@@ -652,6 +775,7 @@
 .projectPrimary {
   color: var(--text-tertiary);
   font-size: 12px;
+  font-weight: 700;
 }
 
 .usageSummary {
@@ -693,6 +817,11 @@
     color: var(--text-secondary);
     font-size: 12px;
     overflow-wrap: anywhere;
+  }
+
+  strong {
+    color: var(--text-primary);
+    font-weight: 700;
   }
 }
 
@@ -851,6 +980,49 @@
   border-top: 1px solid var(--border-color);
 }
 
+.cacheControl {
+  display: grid;
+  gap: 7px;
+
+  label {
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 650;
+  }
+
+  > span {
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+}
+
+.providerManagedNote {
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  background: var(--bg-tertiary);
+
+  strong {
+    color: var(--text-primary);
+    font-size: 13px;
+  }
+
+  span {
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+}
+
+.cacheFallbackNote {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .modelSelection {
   display: grid;
   gap: 10px;
@@ -858,17 +1030,61 @@
 
 .modelList {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  grid-auto-rows: max-content;
+  align-items: stretch;
+  align-content: start;
+  gap: 8px;
   max-height: 320px;
   padding: 8px;
   border: 1px solid var(--border-color);
   border-radius: 10px;
   overflow-y: auto;
   overflow-x: hidden;
+}
 
-  > label {
-    min-height: 44px;
+.modelListItem {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  height: auto;
+  align-items: flex-start;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--bg-tertiary) 54%, transparent);
+}
+
+.modelListItemLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.modelOption {
+  width: 100%;
+  gap: 4px;
+  line-height: 1.35;
+
+  strong,
+  code,
+  small {
+    display: block;
+    min-width: 0;
+  }
+
+  strong {
+    font-size: 13px;
+  }
+
+  code {
+    color: var(--text-tertiary);
+    font-size: 12px;
+  }
+
+  small {
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.4;
   }
 }
 
@@ -1011,6 +1227,7 @@
   }
 
   .poolToolbar,
+  .pollingPanel,
   .projectActions {
     align-items: stretch;
     flex-direction: column;
@@ -1018,6 +1235,22 @@
 
   .poolToolbar button {
     width: 100%;
+  }
+
+  .pollingPanel {
+    grid-template-columns: 1fr;
+  }
+
+  .pollingControl {
+    grid-template-columns: 1fr;
+
+    button {
+      width: 100%;
+    }
+  }
+
+  .pollingStats {
+    justify-content: flex-start;
   }
 
   .project > summary {

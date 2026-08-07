@@ -154,7 +154,7 @@
 
 .kpis {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
   gap: 9px;
 }
 
@@ -183,6 +183,29 @@
     color: var(--text-tertiary);
     font-size: 11px;
     line-height: 1.35;
+  }
+}
+
+.metricWithHelp {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: max-content;
+  max-width: 100%;
+}
+
+.metricHelpControl {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--text-tertiary);
+  cursor: help;
+
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
   }
 }
 
@@ -253,6 +276,183 @@
     flex: 0 0 auto;
     margin-top: 1px;
     color: var(--primary-color);
+  }
+}
+
+.timeline {
+  display: grid;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-primary) 62%, var(--bg-secondary));
+}
+
+.timelineHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+
+  > div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  h4,
+  p {
+    margin: 0;
+  }
+
+  h4 {
+    color: var(--text-primary);
+    font-size: 14px;
+  }
+
+  p,
+  > span {
+    color: var(--text-tertiary);
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  > span {
+    flex: 0 0 auto;
+    padding: 4px 7px;
+    border-radius: 999px;
+    background: var(--bg-tertiary);
+  }
+}
+
+.timelineList,
+.timelineOlder > div {
+  display: grid;
+  gap: 8px;
+}
+
+.timelineBucket {
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-primary);
+
+  > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--border-color);
+    background: color-mix(in srgb, var(--bg-tertiary) 48%, transparent);
+
+    time {
+      color: var(--text-primary);
+      font-size: 11px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    span {
+      color: var(--text-tertiary);
+      font-size: 10px;
+    }
+  }
+}
+
+.timelineRow {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) repeat(4, minmax(58px, auto));
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-color);
+
+  &:last-child {
+    border-bottom: 0;
+  }
+}
+
+.timelineIdentity {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+
+  strong,
+  small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  strong {
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 750;
+  }
+
+  small {
+    color: var(--text-tertiary);
+    font-size: 10px;
+  }
+}
+
+.timelineMetric {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  text-align: right;
+
+  small {
+    overflow: hidden;
+    color: var(--text-tertiary);
+    font-size: 9px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  strong {
+    color: var(--text-primary);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.timelineFailures strong {
+  color: var(--danger-color, #ef4444);
+}
+
+.timelineOlder {
+  > summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 20px;
+    align-items: center;
+    min-height: 38px;
+    padding: 7px 10px;
+    border: 1px dashed var(--border-color);
+    border-radius: 9px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    cursor: pointer;
+    list-style: none;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--primary-color);
+      outline-offset: 1px;
+    }
+  }
+
+  > div {
+    padding-top: 8px;
+  }
+
+  &[open] > summary .chevron {
+    transform: rotate(90deg);
   }
 }
 
@@ -523,9 +723,35 @@
     }
   }
 
+  .timelineHeading {
+    display: grid;
+
+    > span {
+      justify-self: start;
+    }
+  }
+
+  .timelineRow {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .timelineIdentity {
+    grid-column: 1 / -1;
+  }
+
   .error {
     align-items: stretch;
     flex-direction: column;
+  }
+}
+
+@media (max-width: 420px) {
+  .timeline {
+    padding: 10px;
+  }
+
+  .timelineRow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

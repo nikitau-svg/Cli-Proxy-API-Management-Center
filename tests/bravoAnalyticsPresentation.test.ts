@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   analyticsDeltaPercent,
   analyticsSeriesToCSV,
+  formatBravoResponseTime,
   resolveBravoAnalyticsRange,
   resolveBravoCustomRange,
   type BravoAnalyticsRange,
@@ -92,6 +93,13 @@ describe('Bravo analytics presentation', () => {
     expect(analyticsDeltaPercent(10, 0)).toBeNull();
     expect(analyticsDeltaPercent(0, 0)).toBe(0);
     expect(analyticsDeltaPercent(120, 100)).toBe(20);
+  });
+
+  test('formats full provider response time as a readable duration', () => {
+    expect(formatBravoResponseTime(10874, 'ru')).toBe('10,9 с');
+    expect(formatBravoResponseTime(10874, 'en')).toBe('10.9 s');
+    expect(formatBravoResponseTime(742, 'ru')).toBe('742 мс');
+    expect(formatBravoResponseTime(0, 'en')).toBe('—');
   });
 
   test('exports machine-readable CSV and escapes fields', () => {

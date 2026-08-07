@@ -17,6 +17,13 @@ export interface BravoUsageSummary {
   averageLatencyMs: number;
 }
 
+export type BravoAnthropicCacheTTL = 'auto' | '5m' | '1h';
+
+export interface BravoPromptCachePolicy {
+  anthropicTtl: BravoAnthropicCacheTTL;
+  openaiMode: 'provider_managed';
+}
+
 export interface BravoProject {
   id: string;
   name: string;
@@ -25,6 +32,7 @@ export interface BravoProject {
   models: string[];
   allowedAuthIds: string[];
   primaryAuthIds: string[];
+  promptCache: BravoPromptCachePolicy;
   usage: BravoUsageSummary;
   createdAt: string;
   updatedAt: string;
@@ -56,9 +64,49 @@ export interface BravoQuota {
   confidence: string;
   observedAt: string;
   error: string;
+  refresh: BravoQuotaRefreshState;
   session: BravoQuotaWindow;
   weekly: BravoQuotaWindow;
   modelWeekly: BravoModelQuotaWindow[];
+}
+
+export interface BravoQuotaRefreshState {
+  attemptCount: number;
+  successCount: number;
+  failureCount: number;
+  lastAttemptAt: string;
+  lastSuccessAt: string;
+  lastFailureAt: string;
+  nextAttemptAt: string;
+}
+
+export interface BravoQuotaRequestCounters {
+  attempts: number;
+  success: number;
+  failure: number;
+}
+
+export interface BravoQuotaPolling {
+  usageIntervalSeconds: number;
+  minimumIntervalSeconds: number;
+  maximumIntervalSeconds: number;
+  profileIntervalSeconds: number;
+  usageRequests: BravoQuotaRequestCounters;
+  profileRequests: BravoQuotaRequestCounters;
+}
+
+export interface BravoModelIssue {
+  model: string;
+  providerErrorCode: 'credits_required';
+  providerModel: string;
+  providerModelDisplayName: string;
+  providerNoticeTitle: string;
+  providerNoticeText: string;
+  providerDisabledReason: string;
+  providerErrorReason: string;
+  scope: 'model';
+  retryAt: string;
+  observedAt: string;
 }
 
 export interface BravoSubscription {
@@ -66,6 +114,8 @@ export interface BravoSubscription {
   authId: string;
   analyticsId: string;
   provider: string;
+  note: string;
+  displayName: string;
   label: string;
   email: string;
   workspace: string;
@@ -74,8 +124,10 @@ export interface BravoSubscription {
   effectiveTariff: string;
   enabled: boolean;
   health: string;
+  modelIssues: BravoModelIssue[];
   primaryProjectIds: string[];
   quota: BravoQuota;
+  profileRefresh: BravoQuotaRefreshState;
   usage: BravoUsageSummary;
 }
 
@@ -92,6 +144,7 @@ export interface BravoProjectsResponse {
   models: BravoModelOption[];
   subscriptions: BravoSubscription[];
   tariffs: BravoTariff[];
+  quotaPolling: BravoQuotaPolling;
 }
 
 export interface BravoProjectInput {
@@ -101,6 +154,7 @@ export interface BravoProjectInput {
   models: string[];
   allowedAuthIds?: string[];
   primaryAuthIds?: string[];
+  promptCache: Pick<BravoPromptCachePolicy, 'anthropicTtl'>;
 }
 
 export interface BravoKeyIssueResponse {
@@ -128,6 +182,7 @@ export interface BravoAnalyticsUsage {
   failures: number;
   latencyMs: number;
   averageLatencyMs: number;
+  averageTtftMs?: number;
   failureRatePercent: number;
 }
 
@@ -146,8 +201,26 @@ export interface BravoAnalyticsProjectBreakdown {
 export interface BravoAnalyticsSubscriptionBreakdown {
   subscriptionId: string;
   authIndex: string;
+  note: string;
+  displayName: string;
   label: string;
+  email: string;
+  workspace: string;
   provider: string;
+  usage: BravoAnalyticsUsage;
+}
+
+export interface BravoAnalyticsSubscriptionTimelinePoint {
+  start: string;
+  end: string;
+  subscriptionId: string;
+  authIndex: string;
+  provider: string;
+  note: string;
+  displayName: string;
+  label: string;
+  email: string;
+  workspace: string;
   usage: BravoAnalyticsUsage;
 }
 
@@ -190,6 +263,7 @@ export interface BravoAnalyticsResponse {
   breakdownCoverageFrom: string;
   summary: BravoAnalyticsUsage;
   series: BravoAnalyticsPoint[];
+  subscriptionTimeline: BravoAnalyticsSubscriptionTimelinePoint[];
   breakdown: {
     projects: BravoAnalyticsProjectBreakdown[];
     subscriptions: BravoAnalyticsSubscriptionBreakdown[];
@@ -208,6 +282,59 @@ export interface BravoAnalyticsQuery {
   subscriptionId?: string;
   provider?: string;
   model?: string;
+}
+
+export interface BravoTraceAttempt {
+  ordinal: number;
+  at: string;
+  provider: string;
+  model: string;
+  subscriptionId: string;
+  subscriptionLabel: string;
+  status: number;
+  success: boolean;
+  outcome: string;
+  decision: string;
+  committed: boolean;
+  requestedEffort: string;
+  effectiveEffort: string;
+  latencyMs: number | null;
+  ttfbMs: number | null;
+  firstContentMs: number | null;
+  errorCode: string;
+  errorMessage: string;
+  failureClass: string;
+  retryAfter: string;
+  requiredInputTokens: number | null;
+  supportedInputTokens: number | null;
+}
+
+export interface BravoTrace {
+  traceId: string;
+  startedAt: string;
+  projectId: string;
+  logicalModel: string;
+  status: number;
+  success: boolean;
+  outcome: string;
+  finalCode: string;
+  finalMessage: string;
+  clientAction: string;
+  totalLatencyMs: number | null;
+  attempts: BravoTraceAttempt[];
+}
+
+export interface BravoTracesResponse {
+  schemaVersion: number;
+  retentionDays: number;
+  warning: string;
+  traces: BravoTrace[];
+}
+
+export interface BravoTracesQuery {
+  projectId?: string;
+  errorsOnly?: boolean;
+  limit?: number;
 }
 
 export interface BravoRouteCandidate {
@@ -343,6 +470,12 @@ const asFiniteNumber = (value: unknown, fallback = 0): number => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const asOptionalFiniteNumber = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = asFiniteNumber(value, NaN);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 const asNullablePercent = (value: unknown): number | null => {
   if (value === null || value === undefined || value === '') return null;
   const parsed = asFiniteNumber(value, NaN);
@@ -436,6 +569,7 @@ export const normalizeBravoAnalyticsUsage = (value: unknown): BravoAnalyticsUsag
     inputTokens + outputTokens + reasoningTokens
   );
   const latencyMs = asFiniteNumber(source.latency_ms ?? source.latencyMs);
+  const averageTtftMs = asOptionalFiniteNumber(source.average_ttft_ms ?? source.averageTtftMs);
   return {
     requests,
     inputTokens,
@@ -451,6 +585,7 @@ export const normalizeBravoAnalyticsUsage = (value: unknown): BravoAnalyticsUsag
       source.average_latency_ms ?? source.averageLatencyMs,
       requests > 0 ? latencyMs / requests : 0
     ),
+    ...(averageTtftMs === null ? {} : { averageTtftMs }),
     failureRatePercent: asFiniteNumber(
       source.failure_rate_percent ?? source.failureRatePercent,
       requests > 0 ? (failures / requests) * 100 : 0
@@ -483,6 +618,7 @@ const normalizeQuota = (value: unknown): BravoQuota => {
       source.observed_at ?? source.observedAt ?? source.refreshed_at ?? source.refreshedAt
     ).trim(),
     error: asString(source.error).trim(),
+    refresh: normalizeQuotaRefreshState(source.refresh),
     session: normalizeQuotaWindow(source.session),
     weekly: normalizeQuotaWindow(source.weekly),
     modelWeekly: Array.isArray(rawModelWeekly)
@@ -497,8 +633,61 @@ const normalizeQuota = (value: unknown): BravoQuota => {
   };
 };
 
+const normalizeQuotaRefreshState = (value: unknown): BravoQuotaRefreshState => {
+  const source = isRecord(value) ? value : {};
+  return {
+    attemptCount: asFiniteNumber(source.attempt_count ?? source.attemptCount),
+    successCount: asFiniteNumber(source.success_count ?? source.successCount),
+    failureCount: asFiniteNumber(source.failure_count ?? source.failureCount),
+    lastAttemptAt: safeTimestamp(source.last_attempt_at ?? source.lastAttemptAt),
+    lastSuccessAt: safeTimestamp(source.last_success_at ?? source.lastSuccessAt),
+    lastFailureAt: safeTimestamp(source.last_failure_at ?? source.lastFailureAt),
+    nextAttemptAt: safeTimestamp(source.next_attempt_at ?? source.nextAttemptAt),
+  };
+};
+
+const normalizeQuotaRequestCounters = (value: unknown): BravoQuotaRequestCounters => {
+  const source = isRecord(value) ? value : {};
+  return {
+    attempts: asFiniteNumber(source.attempts),
+    success: asFiniteNumber(source.success),
+    failure: asFiniteNumber(source.failure),
+  };
+};
+
+const normalizeQuotaPolling = (value: unknown): BravoQuotaPolling => {
+  const source = isRecord(value) ? value : {};
+  return {
+    usageIntervalSeconds: asFiniteNumber(
+      source.usage_interval_seconds ?? source.usageIntervalSeconds,
+      900
+    ),
+    minimumIntervalSeconds: asFiniteNumber(
+      source.minimum_interval_seconds ?? source.minimumIntervalSeconds,
+      300
+    ),
+    maximumIntervalSeconds: asFiniteNumber(
+      source.maximum_interval_seconds ?? source.maximumIntervalSeconds,
+      86400
+    ),
+    profileIntervalSeconds: asFiniteNumber(
+      source.profile_interval_seconds ?? source.profileIntervalSeconds,
+      21600
+    ),
+    usageRequests: normalizeQuotaRequestCounters(source.usage_requests ?? source.usageRequests),
+    profileRequests: normalizeQuotaRequestCounters(
+      source.profile_requests ?? source.profileRequests
+    ),
+  };
+};
+
 const normalizeProject = (value: unknown): BravoProject => {
   const source = isRecord(value) ? value : {};
+  const rawPromptCache = source.prompt_cache ?? source.promptCache;
+  const promptCache = isRecord(rawPromptCache) ? rawPromptCache : {};
+  const rawAnthropicTtl = asString(promptCache.anthropic_ttl ?? promptCache.anthropicTtl).trim();
+  const anthropicTtl: BravoAnthropicCacheTTL =
+    rawAnthropicTtl === '5m' || rawAnthropicTtl === '1h' ? rawAnthropicTtl : 'auto';
   return {
     id: asString(source.id).trim(),
     name: asString(source.name).trim(),
@@ -509,6 +698,10 @@ const normalizeProject = (value: unknown): BravoProject => {
     models: asStringArray(source.models),
     allowedAuthIds: asStringArray(source.allowed_auth_ids ?? source.allowedAuthIds),
     primaryAuthIds: asStringArray(source.primary_auth_ids ?? source.primaryAuthIds),
+    promptCache: {
+      anthropicTtl,
+      openaiMode: 'provider_managed',
+    },
     usage: normalizeUsageSummary(source.usage),
     createdAt: asString(source.created_at ?? source.createdAt).trim(),
     updatedAt: asString(source.updated_at ?? source.updatedAt).trim(),
@@ -532,15 +725,80 @@ const normalizeModelOption = (value: unknown): BravoModelOption | null => {
   };
 };
 
+const safeMachineValue = (value: unknown, maxLength = 128): string => {
+  const normalized = asString(value).trim();
+  if (!normalized || normalized.length > maxLength || !/^[a-zA-Z0-9_.:/-]+$/.test(normalized)) {
+    return '';
+  }
+  return normalized;
+};
+
+const unsafeProviderTextPattern =
+  /(?:request[_\s-]?id|authorization|bearer\s|api[_\s-]?key|access[_\s-]?token|refresh[_\s-]?token|session[_\s-]?(?:key|token)|client[_\s-]?secret|password|passphrase|private[_\s-]?key|payment[_\s-]?method)/i;
+
+const safeProviderText = (value: unknown, maxLength: number): string => {
+  const normalized = decodeDisplayText(value).trim();
+  if (!normalized || unsafeProviderTextPattern.test(normalized)) return '';
+  if (normalized.startsWith('{') || normalized.startsWith('[')) return '';
+  return normalized.slice(0, maxLength);
+};
+
+const safeTimestamp = (value: unknown): string => {
+  const normalized = asString(value).trim();
+  if (!normalized || normalized.length > 64 || !Number.isFinite(Date.parse(normalized))) {
+    return '';
+  }
+  return normalized;
+};
+
+const normalizeModelIssue = (value: unknown): BravoModelIssue | null => {
+  const source = isRecord(value) ? value : {};
+  const model = safeMachineValue(source.model, 256);
+  const providerErrorCode = safeMachineValue(
+    source.provider_error_code ?? source.providerErrorCode
+  );
+  const scope = safeMachineValue(source.scope, 32);
+  if (!model || providerErrorCode !== 'credits_required' || scope !== 'model') return null;
+  return {
+    model,
+    providerErrorCode,
+    providerModel: safeMachineValue(source.provider_model ?? source.providerModel, 256) || model,
+    providerModelDisplayName: safeProviderText(
+      source.provider_model_display_name ?? source.providerModelDisplayName,
+      160
+    ),
+    providerNoticeTitle: safeProviderText(
+      source.provider_notice_title ?? source.providerNoticeTitle,
+      240
+    ),
+    providerNoticeText: safeProviderText(
+      source.provider_notice_text ?? source.providerNoticeText,
+      600
+    ),
+    providerDisabledReason: safeMachineValue(
+      source.provider_disabled_reason ?? source.providerDisabledReason
+    ),
+    providerErrorReason: safeMachineValue(
+      source.provider_error_reason ?? source.providerErrorReason
+    ),
+    scope,
+    retryAt: safeTimestamp(source.retry_at ?? source.retryAt),
+    observedAt: safeTimestamp(source.observed_at ?? source.observedAt),
+  };
+};
+
 const normalizeSubscription = (value: unknown): BravoSubscription | null => {
   const source = isRecord(value) ? value : {};
   const authIndex = asString(source.auth_index ?? source.authIndex).trim();
+  const rawModelIssues = source.model_issues ?? source.modelIssues;
   if (!authIndex) return null;
   return {
     authIndex,
     authId: asString(source.auth_id ?? source.authId).trim(),
     analyticsId: asString(source.analytics_id ?? source.analyticsId).trim(),
     provider: asString(source.provider).trim().toLowerCase() || 'unknown',
+    note: decodeDisplayText(source.note).trim(),
+    displayName: decodeDisplayText(source.display_name ?? source.displayName).trim(),
     label: decodeDisplayText(source.label ?? source.name).trim(),
     email: decodeDisplayText(source.email).trim(),
     workspace: decodeDisplayText(source.workspace ?? source.organization ?? source.org).trim(),
@@ -557,8 +815,14 @@ const normalizeSubscription = (value: unknown): BravoSubscription | null => {
       asString(source.health ?? source.status)
         .trim()
         .toLowerCase() || 'unknown',
+    modelIssues: Array.isArray(rawModelIssues)
+      ? rawModelIssues
+          .map(normalizeModelIssue)
+          .filter((item): item is BravoModelIssue => item !== null)
+      : [],
     primaryProjectIds: asStringArray(source.primary_project_ids ?? source.primaryProjectIds),
     quota: normalizeQuota(source.quota),
+    profileRefresh: normalizeQuotaRefreshState(source.profile_refresh ?? source.profileRefresh),
     usage: normalizeUsageSummary(source.usage),
   };
 };
@@ -587,6 +851,30 @@ const normalizeAnalyticsPoint = (value: unknown): BravoAnalyticsPoint | null => 
   };
 };
 
+const normalizeSubscriptionTimelinePoint = (
+  value: unknown
+): BravoAnalyticsSubscriptionTimelinePoint | null => {
+  const source = isRecord(value) ? value : {};
+  const start = asString(source.start ?? source.timestamp).trim();
+  const subscriptionId = asString(
+    source.subscription_id ?? source.subscriptionId ?? source.auth_index ?? source.authIndex
+  ).trim();
+  if (!start || !subscriptionId) return null;
+  return {
+    start,
+    end: asString(source.end).trim(),
+    subscriptionId,
+    authIndex: asString(source.auth_index ?? source.authIndex).trim(),
+    provider: asString(source.provider).trim().toLowerCase(),
+    note: decodeDisplayText(source.note).trim(),
+    displayName: decodeDisplayText(source.display_name ?? source.displayName).trim(),
+    label: decodeDisplayText(source.label).trim(),
+    email: decodeDisplayText(source.email).trim(),
+    workspace: decodeDisplayText(source.workspace ?? source.organization ?? source.org).trim(),
+    usage: normalizeBravoAnalyticsUsage(source.usage ?? source),
+  };
+};
+
 const usageFromBreakdown = (source: Record<string, unknown>): BravoAnalyticsUsage =>
   normalizeBravoAnalyticsUsage(source.usage ?? source);
 
@@ -598,6 +886,7 @@ export const normalizeBravoAnalyticsResponse = (value: unknown): BravoAnalyticsR
   const filters = isRecord(source.filters) ? source.filters : {};
   const retention = isRecord(source.retention) ? source.retention : {};
   const breakdown = isRecord(source.breakdown) ? source.breakdown : {};
+  const rawSubscriptionTimeline = source.subscription_timeline ?? source.subscriptionTimeline;
   const normalizeList = <T>(
     candidate: unknown,
     normalizer: (entry: Record<string, unknown>) => T | null
@@ -633,6 +922,11 @@ export const normalizeBravoAnalyticsResponse = (value: unknown): BravoAnalyticsR
           .map(normalizeAnalyticsPoint)
           .filter((point): point is BravoAnalyticsPoint => point !== null)
       : [],
+    subscriptionTimeline: Array.isArray(rawSubscriptionTimeline)
+      ? rawSubscriptionTimeline
+          .map(normalizeSubscriptionTimelinePoint)
+          .filter((point): point is BravoAnalyticsSubscriptionTimelinePoint => point !== null)
+      : [],
     breakdown: {
       projects: normalizeList(breakdown.projects, (entry) => {
         const projectId = asString(entry.project_id ?? entry.projectId).trim();
@@ -651,7 +945,11 @@ export const normalizeBravoAnalyticsResponse = (value: unknown): BravoAnalyticsR
         return {
           subscriptionId,
           authIndex: asString(entry.auth_index ?? entry.authIndex).trim(),
-          label: asString(entry.label).trim(),
+          note: decodeDisplayText(entry.note).trim(),
+          displayName: decodeDisplayText(entry.display_name ?? entry.displayName).trim(),
+          label: decodeDisplayText(entry.label).trim(),
+          email: decodeDisplayText(entry.email).trim(),
+          workspace: decodeDisplayText(entry.workspace ?? entry.organization ?? entry.org).trim(),
           provider: asString(entry.provider).trim().toLowerCase(),
           usage: usageFromBreakdown(entry),
         };
@@ -692,6 +990,84 @@ export const normalizeBravoAnalyticsResponse = (value: unknown): BravoAnalyticsR
       ),
     },
     generatedAt: asString(source.generated_at ?? source.generatedAt).trim(),
+  };
+};
+
+const normalizeBravoTraceAttempt = (value: unknown): BravoTraceAttempt | null => {
+  const source = isRecord(value) ? value : {};
+  const provider = asString(source.provider).trim().toLowerCase();
+  const model = asString(source.model).trim();
+  if (!provider && !model) return null;
+  return {
+    ordinal: asFiniteNumber(source.ordinal ?? source.attempt_ordinal ?? source.attemptOrdinal),
+    at: asString(source.at ?? source.started_at ?? source.startedAt).trim(),
+    provider,
+    model,
+    subscriptionId: asString(source.subscription_id ?? source.subscriptionId).trim(),
+    subscriptionLabel: asString(source.subscription_label ?? source.subscriptionLabel).trim(),
+    status: asFiniteNumber(source.status),
+    success: source.success === true,
+    outcome: asString(source.outcome).trim(),
+    decision: asString(source.decision).trim(),
+    committed: source.committed === true,
+    requestedEffort: asString(source.requested_effort ?? source.requestedEffort).trim(),
+    effectiveEffort: asString(source.effective_effort ?? source.effectiveEffort).trim(),
+    latencyMs: asOptionalFiniteNumber(source.latency_ms ?? source.latencyMs),
+    ttfbMs: asOptionalFiniteNumber(source.ttfb_ms ?? source.ttfbMs),
+    firstContentMs: asOptionalFiniteNumber(source.first_content_ms ?? source.firstContentMs),
+    errorCode: asString(source.error_code ?? source.errorCode).trim(),
+    // The backend has already redacted and localized this field. Do not decode or translate it.
+    errorMessage: asString(source.error_message ?? source.errorMessage),
+    failureClass: asString(source.failure_class ?? source.failureClass).trim(),
+    retryAfter: asString(source.retry_after ?? source.retryAfter).trim(),
+    requiredInputTokens: asOptionalFiniteNumber(
+      source.required_input_tokens ?? source.requiredInputTokens
+    ),
+    supportedInputTokens: asOptionalFiniteNumber(
+      source.supported_input_tokens ?? source.supportedInputTokens
+    ),
+  };
+};
+
+const normalizeBravoTrace = (value: unknown): BravoTrace | null => {
+  const source = isRecord(value) ? value : {};
+  const traceId = asString(source.trace_id ?? source.traceId).trim();
+  if (!traceId) return null;
+  const rawAttempts = source.attempts;
+  return {
+    traceId,
+    startedAt: asString(source.started_at ?? source.startedAt).trim(),
+    projectId: asString(source.project_id ?? source.projectId).trim(),
+    logicalModel: asString(source.logical_model ?? source.logicalModel).trim(),
+    status: asFiniteNumber(source.status ?? source.final_status ?? source.finalStatus),
+    success: source.success === true,
+    outcome: asString(source.outcome).trim(),
+    finalCode: asString(source.final_code ?? source.finalCode).trim(),
+    // The final message is a reviewed, safe Russian explanation supplied by the server.
+    finalMessage: asString(source.final_message ?? source.finalMessage),
+    clientAction: asString(source.client_action ?? source.clientAction).trim(),
+    totalLatencyMs: asOptionalFiniteNumber(
+      source.total_latency_ms ?? source.totalLatencyMs ?? source.route_duration_ms
+    ),
+    attempts: Array.isArray(rawAttempts)
+      ? rawAttempts
+          .map(normalizeBravoTraceAttempt)
+          .filter((attempt): attempt is BravoTraceAttempt => attempt !== null)
+      : [],
+  };
+};
+
+export const normalizeBravoTracesResponse = (value: unknown): BravoTracesResponse => {
+  const source = isRecord(value) ? value : {};
+  return {
+    schemaVersion: asFiniteNumber(source.schema_version ?? source.schemaVersion, 1),
+    retentionDays: asFiniteNumber(source.retention_days ?? source.retentionDays),
+    warning: asString(source.warning),
+    traces: Array.isArray(source.traces)
+      ? source.traces
+          .map(normalizeBravoTrace)
+          .filter((trace): trace is BravoTrace => trace !== null)
+      : [],
   };
 };
 
@@ -1087,6 +1463,7 @@ export const normalizeBravoProjectsResponse = (value: unknown): BravoProjectsRes
     tariffs: Array.isArray(source.tariffs)
       ? source.tariffs.map(normalizeTariff).filter((item): item is BravoTariff => item !== null)
       : [],
+    quotaPolling: normalizeQuotaPolling(source.quota_polling ?? source.quotaPolling),
   };
 };
 
@@ -1108,6 +1485,7 @@ export const mergeBravoResponses = (
     subscriptionsResponse.tariffs.length > 0
       ? subscriptionsResponse.tariffs
       : projectsResponse.tariffs,
+  quotaPolling: subscriptionsResponse.quotaPolling,
 });
 
 const normalizeKeyIssueResponse = (value: unknown): BravoKeyIssueResponse => {
@@ -1125,6 +1503,9 @@ export const serializeBravoProject = (input: BravoProjectInput) => ({
   models: input.models,
   allowed_auth_ids: input.allowedAuthIds ?? [],
   primary_auth_ids: input.primaryAuthIds ?? [],
+  prompt_cache: {
+    anthropic_ttl: input.promptCache.anthropicTtl,
+  },
 });
 
 export const serializeBravoRoute = (route: BravoRoute, preview = false) => ({
@@ -1138,6 +1519,9 @@ export const serializeBravoRoute = (route: BravoRoute, preview = false) => ({
     })),
   ...(preview ? { preview: true } : {}),
 });
+
+const waitForBravoReconfigure = (milliseconds: number): Promise<void> =>
+  new Promise((resolve) => globalThis.setTimeout(resolve, milliseconds));
 
 export const bravoApi = {
   async listProjects(): Promise<BravoProjectsResponse> {
@@ -1197,6 +1581,23 @@ export const bravoApi = {
     await apiClient.post('/bravo/quotas/refresh', {});
   },
 
+  async updateQuotaPolling(intervalSeconds: number): Promise<boolean> {
+    await apiClient.patch('/plugins/bravo/config', {
+      quota_usage_refresh_seconds: intervalSeconds,
+    });
+    // Core persists generic plugin config before its asynchronous hot reload
+    // completes. Wait for Bravo's effective runtime view so the following page
+    // refresh cannot flash the previous interval back into the form.
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await waitForBravoReconfigure(100);
+      const effective = normalizeBravoProjectsResponse(
+        await apiClient.get('/bravo/subscriptions')
+      );
+      if (effective.quotaPolling.usageIntervalSeconds === intervalSeconds) return true;
+    }
+    return false;
+  },
+
   async getAnalytics(query: BravoAnalyticsQuery): Promise<BravoAnalyticsResponse> {
     return normalizeBravoAnalyticsResponse(
       await apiClient.get('/bravo/analytics', {
@@ -1208,6 +1609,18 @@ export const bravoApi = {
           ...(query.subscriptionId ? { subscription_id: query.subscriptionId } : {}),
           ...(query.provider ? { provider: query.provider } : {}),
           ...(query.model ? { model: query.model } : {}),
+        },
+      })
+    );
+  },
+
+  async getTraces(query: BravoTracesQuery = {}): Promise<BravoTracesResponse> {
+    return normalizeBravoTracesResponse(
+      await apiClient.get('/bravo/traces', {
+        params: {
+          project_id: query.projectId ?? '',
+          errors_only: query.errorsOnly === true,
+          limit: query.limit ?? 50,
         },
       })
     );

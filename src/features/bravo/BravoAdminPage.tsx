@@ -25,6 +25,7 @@ import {
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import {
   bravoApi,
+  type BravoAnthropicCacheTTL,
   type BravoProject,
   type BravoProjectsResponse,
   type BravoQuotaWindow,
@@ -37,7 +38,9 @@ import { getErrorMessage } from '@/utils/helpers';
 import { formatBravoQuotaReset } from './bravoQuotaPresentation';
 import { BravoCompatibilityPanel } from './BravoCompatibilityPanel';
 import { BravoProjectAnalytics } from './BravoProjectAnalytics';
+import { BravoRouteTracePanel } from './BravoRouteTracePanel';
 import { BravoRouteEditor } from './BravoRouteEditor';
+import { bravoProviderLabel, formatBravoSubscriptionRecord } from './bravoSubscriptionPresentation';
 import styles from './BravoAdminPage.module.scss';
 
 type EditorState = { mode: 'create'; project: null } | { mode: 'edit'; project: BravoProject };
@@ -50,6 +53,7 @@ interface ProjectDraft {
   allSubscriptions: boolean;
   allowedAuthIds: string[];
   primaryAuthIds: string[];
+  anthropicCacheTtl: BravoAnthropicCacheTTL;
 }
 
 interface IssuedKey {
@@ -77,6 +81,14 @@ const emptyData = (): BravoProjectsResponse => ({
   models: [],
   subscriptions: [],
   tariffs: [],
+  quotaPolling: {
+    usageIntervalSeconds: 900,
+    minimumIntervalSeconds: 300,
+    maximumIntervalSeconds: 86400,
+    profileIntervalSeconds: 21600,
+    usageRequests: { attempts: 0, success: 0, failure: 0 },
+    profileRequests: { attempts: 0, success: 0, failure: 0 },
+  },
 });
 
 const emptyDraft = (): ProjectDraft => ({
@@ -87,6 +99,7 @@ const emptyDraft = (): ProjectDraft => ({
   allSubscriptions: true,
   allowedAuthIds: [],
   primaryAuthIds: [],
+  anthropicCacheTtl: '5m',
 });
 
 const shellQuote = (value: string): string => `'${value.replace(/'/g, `'"'"'`)}'`;
@@ -102,29 +115,12 @@ const draftFromProject = (project: BravoProject): ProjectDraft => {
     allSubscriptions,
     allowedAuthIds: [...project.allowedAuthIds],
     primaryAuthIds: [...project.primaryAuthIds],
+    anthropicCacheTtl: project.promptCache.anthropicTtl,
   };
 };
 
 const subscriptionReference = (subscription: BravoSubscription): string =>
   subscription.authIndex || subscription.authId;
-
-const providerName = (provider: string): string => {
-  const normalized = provider.trim().toLowerCase();
-  if (normalized === 'claude' || normalized === 'anthropic') return 'Claude';
-  if (normalized === 'codex') return 'OpenAI Codex';
-  if (normalized === 'openai') return 'OpenAI';
-  return provider.trim() || 'Unknown';
-};
-
-const subscriptionWorkspace = (subscription: BravoSubscription): string =>
-  subscription.workspace ||
-  subscription.label ||
-  subscription.email ||
-  subscription.authId ||
-  subscription.authIndex;
-
-const subscriptionLabel = (subscription: BravoSubscription): string =>
-  `${providerName(subscription.provider)} · ${subscriptionWorkspace(subscription)}`;
 
 const clampPercent = (value: number): number => Math.max(0, Math.min(100, value));
 
@@ -224,6 +220,8 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
   const [error, setError] = useState('');
   const [quotaRefreshing, setQuotaRefreshing] = useState(false);
   const [quotaError, setQuotaError] = useState('');
+  const [pollingMinutes, setPollingMinutes] = useState('15');
+  const [pollingSaving, setPollingSaving] = useState(false);
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [draft, setDraft] = useState<ProjectDraft>(emptyDraft);
   const [modelFilter, setModelFilter] = useState('');
@@ -302,6 +300,10 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
     );
   }, [data.tariffs]);
 
+  useEffect(() => {
+    setPollingMinutes(String(Math.round(data.quotaPolling.usageIntervalSeconds / 60)));
+  }, [data.quotaPolling.usageIntervalSeconds]);
+
   const activeCount = useMemo(
     () => data.projects.filter((project) => project.enabled).length,
     [data.projects]
@@ -365,27 +367,27 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
     const query = allowedFilter.trim().toLowerCase();
     const groups = new Map<string, PrimaryGroup>();
     data.subscriptions.forEach((subscription) => {
-      const searchable = [
-        subscription.provider,
-        subscription.workspace,
-        subscription.label,
-        subscription.email,
-        subscription.plan,
-      ]
-        .join(' ')
-        .toLowerCase();
-      if (query && !searchable.includes(query)) return;
-      const workspace = subscriptionWorkspace(subscription);
-      const id = `${subscription.provider}:${workspace}`;
+      const identity = formatBravoSubscriptionRecord(subscription);
+      if (query && !identity.searchText.includes(query)) return;
+      const id = subscription.provider || 'unknown';
       const group = groups.get(id) ?? {
         id,
-        label: `${providerName(subscription.provider)} · ${workspace}`,
+        label: bravoProviderLabel(subscription.provider),
         subscriptions: [],
       };
       group.subscriptions.push(subscription);
       groups.set(id, group);
     });
-    return [...groups.values()].sort((left, right) => left.label.localeCompare(right.label));
+    return [...groups.values()]
+      .map((group) => ({
+        ...group,
+        subscriptions: [...group.subscriptions].sort((left, right) =>
+          formatBravoSubscriptionRecord(left).title.localeCompare(
+            formatBravoSubscriptionRecord(right).title
+          )
+        ),
+      }))
+      .sort((left, right) => left.label.localeCompare(right.label));
   }, [allowedFilter, data.subscriptions]);
 
   const primaryGroups = useMemo<PrimaryGroup[]>(() => {
@@ -394,27 +396,27 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
     data.subscriptions.forEach((subscription) => {
       const reference = subscriptionReference(subscription);
       if (!draft.allSubscriptions && !draft.allowedAuthIds.includes(reference)) return;
-      const searchable = [
-        subscription.provider,
-        subscription.workspace,
-        subscription.label,
-        subscription.email,
-        subscription.plan,
-      ]
-        .join(' ')
-        .toLowerCase();
-      if (query && !searchable.includes(query)) return;
-      const workspace = subscriptionWorkspace(subscription);
-      const id = `${subscription.provider}:${workspace}`;
+      const identity = formatBravoSubscriptionRecord(subscription);
+      if (query && !identity.searchText.includes(query)) return;
+      const id = subscription.provider || 'unknown';
       const group = groups.get(id) ?? {
         id,
-        label: `${providerName(subscription.provider)} · ${workspace}`,
+        label: bravoProviderLabel(subscription.provider),
         subscriptions: [],
       };
       group.subscriptions.push(subscription);
       groups.set(id, group);
     });
-    return [...groups.values()].sort((left, right) => left.label.localeCompare(right.label));
+    return [...groups.values()]
+      .map((group) => ({
+        ...group,
+        subscriptions: [...group.subscriptions].sort((left, right) =>
+          formatBravoSubscriptionRecord(left).title.localeCompare(
+            formatBravoSubscriptionRecord(right).title
+          )
+        ),
+      }))
+      .sort((left, right) => left.label.localeCompare(right.label));
   }, [data.subscriptions, draft.allSubscriptions, draft.allowedAuthIds, primaryFilter]);
 
   const openCreate = () => {
@@ -520,6 +522,9 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
         models: draft.allModels ? ['*'] : draft.selectedModels,
         allowedAuthIds: draft.allSubscriptions ? [] : draft.allowedAuthIds,
         primaryAuthIds: draft.primaryAuthIds,
+        promptCache: {
+          anthropicTtl: draft.anthropicCacheTtl,
+        },
       };
       if (editor.mode === 'create') {
         const result = await bravoApi.createProject(input);
@@ -549,6 +554,9 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
         models: project.models,
         allowedAuthIds: project.allowedAuthIds,
         primaryAuthIds: project.primaryAuthIds,
+        promptCache: {
+          anthropicTtl: project.promptCache.anthropicTtl,
+        },
       });
       await loadOverview();
       showNotification(
@@ -619,6 +627,31 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
       setQuotaError(getErrorMessage(err, t('bravo.quota.refresh_failed')));
     } finally {
       setQuotaRefreshing(false);
+    }
+  };
+
+  const saveQuotaPolling = async () => {
+    const minutes = Number(pollingMinutes);
+    const minimum = Math.ceil(data.quotaPolling.minimumIntervalSeconds / 60);
+    const maximum = Math.floor(data.quotaPolling.maximumIntervalSeconds / 60);
+    if (!Number.isInteger(minutes) || minutes < minimum || minutes > maximum) {
+      setQuotaError(t('bravo.quota.polling_validation', { minimum, maximum }));
+      return;
+    }
+    setPollingSaving(true);
+    setQuotaError('');
+    try {
+      const applied = await bravoApi.updateQuotaPolling(minutes * 60);
+      if (!applied) {
+        setQuotaError(t('bravo.quota.polling_apply_timeout'));
+        return;
+      }
+      await loadOverview();
+      showNotification(t('bravo.quota.polling_saved'), 'success');
+    } catch (err: unknown) {
+      setQuotaError(getErrorMessage(err, t('bravo.quota.polling_save_failed')));
+    } finally {
+      setPollingSaving(false);
     }
   };
 
@@ -784,6 +817,50 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
           <div className={styles.liveRegion} role="status" aria-live="polite">
             {quotaRefreshing ? t('bravo.quota.refreshing') : ''}
           </div>
+          <div className={styles.pollingPanel}>
+            <div className={styles.pollingCopy}>
+              <strong>{t('bravo.quota.polling_title')}</strong>
+              <span>{t('bravo.quota.polling_hint')}</span>
+            </div>
+            <div className={styles.pollingControl}>
+              <Input
+                type="number"
+                min={Math.ceil(data.quotaPolling.minimumIntervalSeconds / 60)}
+                max={Math.floor(data.quotaPolling.maximumIntervalSeconds / 60)}
+                step={1}
+                label={t('bravo.quota.polling_minutes')}
+                value={pollingMinutes}
+                onChange={(event) => setPollingMinutes(event.target.value)}
+                disabled={pollingSaving}
+              />
+              <Button
+                variant="secondary"
+                onClick={() => void saveQuotaPolling()}
+                loading={pollingSaving}
+                disabled={!connected}
+              >
+                {t('bravo.quota.polling_save')}
+              </Button>
+            </div>
+            {Number(pollingMinutes) < 10 ? (
+              <div className={styles.pollingWarning} role="note">
+                <IconAlertTriangle size={16} />
+                {t('bravo.quota.polling_warning')}
+              </div>
+            ) : null}
+            <div className={styles.pollingStats}>
+              <span>
+                {t('bravo.quota.polling_usage_requests', {
+                  ...data.quotaPolling.usageRequests,
+                })}
+              </span>
+              <span>
+                {t('bravo.quota.polling_profile_requests', {
+                  ...data.quotaPolling.profileRequests,
+                })}
+              </span>
+            </div>
+          </div>
 
           {data.subscriptions.length === 0 ? (
             <div className={styles.inlineEmpty}>{t('bravo.subscriptions.empty')}</div>
@@ -799,14 +876,14 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                   .map((id) => projectByID.get(id)?.name)
                   .filter((name): name is string => Boolean(name));
                 const busy = mutatingSubscription === subscription.authIndex;
+                const identity = formatBravoSubscriptionRecord(subscription);
                 return (
                   <details className={styles.subscription} key={subscription.authIndex}>
                     <summary>
                       <span className={styles.subscriptionIdentity}>
-                        <strong>{subscriptionLabel(subscription)}</strong>
-                        <span>
-                          {[subscription.email, subscription.plan].filter(Boolean).join(' · ') ||
-                            t('bravo.subscriptions.details_unknown')}
+                        <strong title={identity.title}>{identity.title}</strong>
+                        <span title={identity.subtitle}>
+                          {identity.subtitle || t('bravo.subscriptions.details_unknown')}
                         </span>
                       </span>
                       <span className={styles.subscriptionBadges}>
@@ -822,6 +899,14 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                             defaultValue: subscription.health,
                           })}
                         </span>
+                        {subscription.modelIssues.length > 0 ? (
+                          <span className={styles.modelIssueBadge}>
+                            <IconAlertTriangle size={13} />
+                            {t('bravo.subscriptions.models_limited', {
+                              count: subscription.modelIssues.length,
+                            })}
+                          </span>
+                        ) : null}
                       </span>
                       <span className={styles.ownerSummary}>
                         {owners.length
@@ -847,6 +932,51 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                       </span>
                     </summary>
                     <div className={styles.subscriptionBody}>
+                      {subscription.modelIssues.length > 0 ? (
+                        <section
+                          className={styles.modelIssues}
+                          aria-label={t('bravo.subscriptions.model_issues_title')}
+                        >
+                          <div className={styles.modelIssuesHeading}>
+                            <IconAlertTriangle size={18} />
+                            <div>
+                              <strong>{t('bravo.subscriptions.model_issues_title')}</strong>
+                              <span>{t('bravo.subscriptions.model_issues_hint')}</span>
+                            </div>
+                          </div>
+                          <div className={styles.modelIssueList}>
+                            {subscription.modelIssues.map((issue, index) => {
+                              const modelName =
+                                issue.providerModelDisplayName ||
+                                issue.providerModel ||
+                                issue.model;
+                              const message =
+                                issue.providerErrorCode === 'credits_required'
+                                  ? t('bravo.subscriptions.model_issues.credits_required', {
+                                      model: modelName,
+                                    })
+                                  : t('bravo.subscriptions.model_issues.unknown', {
+                                      model: modelName,
+                                    });
+                              return (
+                                <div
+                                  className={styles.modelIssue}
+                                  key={[
+                                    issue.model,
+                                    issue.providerErrorCode,
+                                    issue.observedAt,
+                                    index,
+                                  ].join(':')}
+                                >
+                                  <strong>{message}</strong>
+                                  <small>{t('bravo.subscriptions.model_issues_fallback')}</small>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </section>
+                      ) : null}
+
                       <div className={styles.confirmationRow}>
                         <span className={confirmed ? styles.confirmedBadge : styles.unknownBadge}>
                           {confirmed ? (
@@ -860,9 +990,15 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                               })
                             : t('bravo.quota.not_confirmed')}
                         </span>
-                        {subscription.quota.error ? (
+                        {subscription.quota.error && subscription.modelIssues.length === 0 ? (
                           <span className={styles.quotaErrorText}>{subscription.quota.error}</span>
                         ) : null}
+                        <span className={styles.accountPollingCount}>
+                          {t('bravo.quota.account_polling_requests', {
+                            usage: subscription.quota.refresh.attemptCount,
+                            profile: subscription.profileRefresh.attemptCount,
+                          })}
+                        </span>
                       </div>
 
                       <div className={styles.quotaGrid}>
@@ -945,6 +1081,48 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                             <dt>{t('bravo.usage.weekly')}</dt>
                             <dd>{compactNumber(subscription.usage.weekly.totalTokens, locale)}</dd>
                           </div>
+                          {subscription.quota.error ? (
+                            <div>
+                              <dt>quota_error</dt>
+                              <dd>{subscription.quota.error}</dd>
+                            </div>
+                          ) : null}
+                          {subscription.modelIssues.map((issue, index) => (
+                            <div
+                              className={styles.modelIssueTechnicalRow}
+                              key={[
+                                'technical',
+                                issue.model,
+                                issue.providerErrorCode,
+                                issue.observedAt,
+                                index,
+                              ].join(':')}
+                            >
+                              <dt>{`model_issue[${index}]`}</dt>
+                              <dd>
+                                <span>{`model=${issue.model}`}</span>
+                                <span>{`provider_error_code=${issue.providerErrorCode}`}</span>
+                                {issue.providerDisabledReason ? (
+                                  <span>
+                                    {`provider_disabled_reason=${issue.providerDisabledReason}`}
+                                  </span>
+                                ) : null}
+                                {issue.providerErrorReason ? (
+                                  <span>
+                                    {`provider_error_reason=${issue.providerErrorReason}`}
+                                  </span>
+                                ) : null}
+                                <span>
+                                  {issue.retryAt
+                                    ? `retry_at=${issue.retryAt}`
+                                    : 'retry_at=not_reported'}
+                                </span>
+                                {issue.observedAt ? (
+                                  <span>{`observed_at=${issue.observedAt}`}</span>
+                                ) : null}
+                              </dd>
+                            </div>
+                          ))}
                         </dl>
                       </details>
                     </div>
@@ -1032,6 +1210,8 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
 
       <BravoRouteEditor />
 
+      <BravoRouteTracePanel projects={data.projects} />
+
       <div className={styles.projectsHeading}>
         <div>
           <h2>{t('bravo.projects.list_title')}</h2>
@@ -1059,14 +1239,30 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
             const revoked = project.status === 'revoked';
             const allModels = project.models.length === 0 || project.models.includes('*');
             const allSubscriptions = project.allowedAuthIds.length === 0;
-            const allowedLabels = project.allowedAuthIds
-              .map((reference) => subscriptionByReference.get(reference))
-              .filter((item): item is BravoSubscription => Boolean(item))
-              .map(subscriptionLabel);
-            const primaryLabels = project.primaryAuthIds
-              .map((reference) => subscriptionByReference.get(reference))
-              .filter((item): item is BravoSubscription => Boolean(item))
-              .map(subscriptionLabel);
+            const allowedSubscriptionLabels = project.allowedAuthIds
+              .map((reference) => {
+                const subscription = subscriptionByReference.get(reference);
+                return subscription
+                  ? {
+                      reference,
+                      title: formatBravoSubscriptionRecord(subscription).title,
+                    }
+                  : null;
+              })
+              .filter((item): item is { reference: string; title: string } => Boolean(item));
+            const primarySubscriptionLabels = project.primaryAuthIds
+              .map((reference) => {
+                const subscription = subscriptionByReference.get(reference);
+                return subscription
+                  ? {
+                      reference,
+                      title: formatBravoSubscriptionRecord(subscription).title,
+                    }
+                  : null;
+              })
+              .filter((item): item is { reference: string; title: string } => Boolean(item));
+            const allowedLabels = allowedSubscriptionLabels.map((item) => item.title);
+            const primaryLabels = primarySubscriptionLabels.map((item) => item.title);
             const allowedSummary = allSubscriptions
               ? t('bravo.subscriptions.card_pool_all')
               : t('bravo.subscriptions.card_pool_selected', {
@@ -1118,8 +1314,10 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                       <p>{t('bravo.subscriptions.all_allowed')}</p>
                     ) : allowedLabels.length ? (
                       <div className={styles.tags}>
-                        {allowedLabels.map((label) => (
-                          <span key={label}>{label}</span>
+                        {allowedSubscriptionLabels.map(({ reference, title }) => (
+                          <span key={reference}>
+                            <strong>{title}</strong>
+                          </span>
                         ))}
                       </div>
                     ) : (
@@ -1130,8 +1328,10 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                     <h3>{t('bravo.subscriptions.primary')}</h3>
                     {primaryLabels.length ? (
                       <div className={styles.tags}>
-                        {primaryLabels.map((label) => (
-                          <span key={label}>{label}</span>
+                        {primarySubscriptionLabels.map(({ reference, title }) => (
+                          <span key={reference}>
+                            <strong>{title}</strong>
+                          </span>
                         ))}
                       </div>
                     ) : (
@@ -1144,6 +1344,16 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                       {allModels
                         ? t('bravo.models.all')
                         : t('bravo.models.count', { count: project.models.length })}
+                    </p>
+                  </div>
+                  <div className={styles.projectSection}>
+                    <h3>{t('bravo.prompt_cache.title')}</h3>
+                    <p>
+                      {t('bravo.prompt_cache.card_summary', {
+                        claude: t(
+                          `bravo.prompt_cache.anthropic_ttl_short.${project.promptCache.anthropicTtl}`
+                        ),
+                      })}
                     </p>
                   </div>
                   <BravoProjectAnalytics project={project} subscriptions={data.subscriptions} />
@@ -1293,6 +1503,7 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                       <h3>{group.label}</h3>
                       {group.subscriptions.map((subscription) => {
                         const reference = subscriptionReference(subscription);
+                        const identity = formatBravoSubscriptionRecord(subscription);
                         return (
                           <SelectionCheckbox
                             key={subscription.authIndex}
@@ -1301,16 +1512,8 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                             disabled={saving}
                             label={
                               <span className={styles.primaryOption}>
-                                <strong>
-                                  {subscription.label ||
-                                    subscription.email ||
-                                    subscriptionWorkspace(subscription)}
-                                </strong>
-                                <span>
-                                  {[subscription.plan, subscription.effectiveTariff]
-                                    .filter(Boolean)
-                                    .join(' · ')}
-                                </span>
+                                <strong>{identity.title}</strong>
+                                <span>{identity.subtitle}</span>
                               </span>
                             }
                           />
@@ -1354,6 +1557,7 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                   <h3>{group.label}</h3>
                   {group.subscriptions.map((subscription) => {
                     const reference = subscriptionReference(subscription);
+                    const identity = formatBravoSubscriptionRecord(subscription);
                     const otherOwnerIDs = subscriptionOwnerIDs(subscription).filter(
                       (id) => id !== editor?.project?.id
                     );
@@ -1378,16 +1582,8 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                         }
                         label={
                           <span className={styles.primaryOption}>
-                            <strong>
-                              {subscription.label ||
-                                subscription.email ||
-                                subscriptionWorkspace(subscription)}
-                            </strong>
-                            <span>
-                              {[subscription.plan, subscription.effectiveTariff]
-                                .filter(Boolean)
-                                .join(' · ')}
-                            </span>
+                            <strong>{identity.title}</strong>
+                            <span>{identity.subtitle}</span>
                             {unavailable ? (
                               <small>
                                 {t('bravo.subscriptions.already_owned', {
@@ -1448,12 +1644,14 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                     rightElement={<IconSearch size={16} />}
                     aria-label={t('bravo.models.search')}
                   />
-                  <div className={styles.modelList}>
+                  <div className={styles.modelList} data-testid="bravo-model-list">
                     {visibleModels.map((model) => (
                       <SelectionCheckbox
                         key={model.id}
                         checked={draft.selectedModels.includes(model.id)}
                         onChange={(checked) => toggleModel(model.id, checked)}
+                        className={styles.modelListItem}
+                        labelClassName={styles.modelListItemLabel}
                         label={
                           <span className={styles.modelOption}>
                             <strong>{model.displayName}</strong>
@@ -1470,6 +1668,59 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                   </div>
                 </div>
               ) : null}
+            </div>
+          </details>
+
+          <details className={styles.editorDisclosure}>
+            <summary>
+              <span>{t('bravo.prompt_cache.title')}</span>
+              <span className={styles.sectionMeta}>
+                {t(`bravo.prompt_cache.anthropic_ttl_short.${draft.anthropicCacheTtl}`)}
+              </span>
+              <span className={styles.chevron} aria-hidden="true">
+                ›
+              </span>
+            </summary>
+            <div className={styles.editorDisclosureBody}>
+              <div className={styles.cacheControl}>
+                <label id="bravo-anthropic-cache-ttl">
+                  {t('bravo.prompt_cache.anthropic_ttl')}
+                </label>
+                <Select
+                  value={draft.anthropicCacheTtl}
+                  options={[
+                    {
+                      value: '5m',
+                      label: t('bravo.prompt_cache.anthropic_ttl_options.5m'),
+                    },
+                    {
+                      value: '1h',
+                      label: t('bravo.prompt_cache.anthropic_ttl_options.1h'),
+                    },
+                    {
+                      value: 'auto',
+                      label: t('bravo.prompt_cache.anthropic_ttl_options.auto'),
+                    },
+                  ]}
+                  onChange={(anthropicCacheTtl) =>
+                    setDraft((current) => ({
+                      ...current,
+                      anthropicCacheTtl: anthropicCacheTtl as BravoAnthropicCacheTTL,
+                    }))
+                  }
+                  ariaLabelledBy="bravo-anthropic-cache-ttl"
+                  ariaDescribedBy="bravo-anthropic-cache-ttl-help"
+                  disabled={saving}
+                />
+                <span id="bravo-anthropic-cache-ttl-help">
+                  {t('bravo.prompt_cache.anthropic_help')}
+                </span>
+              </div>
+              <div className={styles.providerManagedNote}>
+                <strong>{t('bravo.prompt_cache.openai_title')}</strong>
+                <span>{t('bravo.prompt_cache.openai_help')}</span>
+              </div>
+              <p className={styles.cacheFallbackNote}>{t('bravo.prompt_cache.fallback_help')}</p>
             </div>
           </details>
         </div>
