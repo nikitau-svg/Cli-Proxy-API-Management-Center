@@ -91,6 +91,23 @@ const emptyData = (): BravoProjectsResponse => ({
     usageRequests: { attempts: 0, success: 0, failure: 0 },
     profileRequests: { attempts: 0, success: 0, failure: 0 },
   },
+  adaptiveAllocator: {
+    mode: 'off',
+    effect: 'disabled',
+    routingEnforced: false,
+    additionalProviderRequests: false,
+    quotaSnapshotSource: '',
+    coolingHalfLifeSeconds: 0,
+    coolingMaxAgeSeconds: 0,
+    trackedAccounts: 0,
+    trackedCommitments: 0,
+    rawPendingPercent: 0,
+    effectivePendingPercent: 0,
+    maximumLearnedScale: 1,
+    saturated: false,
+    droppedAccounts: 0,
+    note: '',
+  },
 });
 
 const emptyDraft = (): ProjectDraft => ({
@@ -885,6 +902,47 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                 })}
               </span>
             </div>
+          </div>
+
+          <div className={styles.adaptivePanel} role="status">
+            <div className={styles.adaptiveCopy}>
+              <div className={styles.adaptiveHeading}>
+                <strong>{t('bravo.quota.adaptive_title')}</strong>
+                <span className={styles.adaptiveStatus}>
+                  {data.adaptiveAllocator.mode === 'observe'
+                    ? t('bravo.quota.adaptive_observe')
+                    : t('bravo.quota.adaptive_off')}
+                </span>
+              </div>
+              <span>{t('bravo.quota.adaptive_hint')}</span>
+            </div>
+            <div className={styles.adaptiveMetrics}>
+              <span>
+                {t('bravo.quota.adaptive_pending', {
+                  percent: compactNumber(
+                    data.adaptiveAllocator.effectivePendingPercent,
+                    i18n.language
+                  ),
+                })}
+              </span>
+              <span>
+                {t('bravo.quota.adaptive_cooling', {
+                  halfLife: Math.round(data.adaptiveAllocator.coolingHalfLifeSeconds / 60),
+                  maxAge: Math.round(data.adaptiveAllocator.coolingMaxAgeSeconds / 60),
+                })}
+              </span>
+              <span>
+                {data.adaptiveAllocator.additionalProviderRequests
+                  ? t('bravo.quota.adaptive_provider_io_warning')
+                  : t('bravo.quota.adaptive_provider_io_none')}
+              </span>
+            </div>
+            {data.adaptiveAllocator.saturated ? (
+              <div className={styles.pollingWarning} role="note">
+                <IconAlertTriangle size={16} />
+                {t('bravo.quota.adaptive_saturated')}
+              </div>
+            ) : null}
           </div>
 
           {data.subscriptions.length === 0 ? (

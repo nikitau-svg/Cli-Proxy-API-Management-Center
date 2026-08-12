@@ -95,6 +95,24 @@ export interface BravoQuotaPolling {
   profileRequests: BravoQuotaRequestCounters;
 }
 
+export interface BravoAdaptiveAllocator {
+  mode: 'off' | 'observe' | string;
+  effect: 'disabled' | 'shadow_only' | string;
+  routingEnforced: boolean;
+  additionalProviderRequests: boolean;
+  quotaSnapshotSource: string;
+  coolingHalfLifeSeconds: number;
+  coolingMaxAgeSeconds: number;
+  trackedAccounts: number;
+  trackedCommitments: number;
+  rawPendingPercent: number;
+  effectivePendingPercent: number;
+  maximumLearnedScale: number;
+  saturated: boolean;
+  droppedAccounts: number;
+  note: string;
+}
+
 export interface BravoModelIssue {
   model: string;
   providerErrorCode: 'credits_required';
@@ -145,6 +163,7 @@ export interface BravoProjectsResponse {
   subscriptions: BravoSubscription[];
   tariffs: BravoTariff[];
   quotaPolling: BravoQuotaPolling;
+  adaptiveAllocator: BravoAdaptiveAllocator;
 }
 
 export interface BravoProjectInput {
@@ -682,6 +701,39 @@ const normalizeQuotaPolling = (value: unknown): BravoQuotaPolling => {
     profileRequests: normalizeQuotaRequestCounters(
       source.profile_requests ?? source.profileRequests
     ),
+  };
+};
+
+const normalizeAdaptiveAllocator = (value: unknown): BravoAdaptiveAllocator => {
+  const source = isRecord(value) ? value : {};
+  return {
+    mode: asString(source.mode).trim().toLowerCase() || 'off',
+    effect: asString(source.effect).trim().toLowerCase() || 'disabled',
+    routingEnforced: source.routing_enforced === true || source.routingEnforced === true,
+    additionalProviderRequests:
+      source.additional_provider_requests === true || source.additionalProviderRequests === true,
+    quotaSnapshotSource: asString(
+      source.quota_snapshot_source ?? source.quotaSnapshotSource
+    ).trim(),
+    coolingHalfLifeSeconds: asFiniteNumber(
+      source.cooling_half_life_seconds ?? source.coolingHalfLifeSeconds
+    ),
+    coolingMaxAgeSeconds: asFiniteNumber(
+      source.cooling_max_age_seconds ?? source.coolingMaxAgeSeconds
+    ),
+    trackedAccounts: asFiniteNumber(source.tracked_accounts ?? source.trackedAccounts),
+    trackedCommitments: asFiniteNumber(source.tracked_commitments ?? source.trackedCommitments),
+    rawPendingPercent: asFiniteNumber(source.raw_pending_percent ?? source.rawPendingPercent),
+    effectivePendingPercent: asFiniteNumber(
+      source.effective_pending_percent ?? source.effectivePendingPercent
+    ),
+    maximumLearnedScale: asFiniteNumber(
+      source.maximum_learned_scale ?? source.maximumLearnedScale,
+      1
+    ),
+    saturated: source.saturated === true,
+    droppedAccounts: asFiniteNumber(source.dropped_accounts ?? source.droppedAccounts),
+    note: asString(source.note).trim(),
   };
 };
 
@@ -1468,6 +1520,9 @@ export const normalizeBravoProjectsResponse = (value: unknown): BravoProjectsRes
       ? source.tariffs.map(normalizeTariff).filter((item): item is BravoTariff => item !== null)
       : [],
     quotaPolling: normalizeQuotaPolling(source.quota_polling ?? source.quotaPolling),
+    adaptiveAllocator: normalizeAdaptiveAllocator(
+      source.adaptive_allocator ?? source.adaptiveAllocator
+    ),
   };
 };
 
@@ -1490,6 +1545,7 @@ export const mergeBravoResponses = (
       ? subscriptionsResponse.tariffs
       : projectsResponse.tariffs,
   quotaPolling: subscriptionsResponse.quotaPolling,
+  adaptiveAllocator: subscriptionsResponse.adaptiveAllocator,
 });
 
 export const normalizeBravoKeyIssueResponse = (value: unknown): BravoKeyIssueResponse => {

@@ -151,6 +151,20 @@ describe('Bravo API normalization', () => {
         usage_requests: { attempts: 12, success: 9, failure: 3 },
         profile_requests: { attempts: 4, success: 4, failure: 0 },
       },
+      adaptive_allocator: {
+        mode: 'observe',
+        effect: 'shadow_only',
+        routing_enforced: false,
+        additional_provider_requests: false,
+        quota_snapshot_source: 'existing_background_cache',
+        cooling_half_life_seconds: 300,
+        cooling_max_age_seconds: 1800,
+        tracked_accounts: 2,
+        tracked_commitments: 7,
+        raw_pending_percent: 4.5,
+        effective_pending_percent: 2.25,
+        maximum_learned_scale: 1.8,
+      },
       subscriptions: [
         {
           auth_index: 'claude:polling',
@@ -172,6 +186,17 @@ describe('Bravo API normalization', () => {
       attempts: 12,
       success: 9,
       failure: 3,
+    });
+    expect(result.adaptiveAllocator).toMatchObject({
+      mode: 'observe',
+      effect: 'shadow_only',
+      routingEnforced: false,
+      additionalProviderRequests: false,
+      coolingHalfLifeSeconds: 300,
+      coolingMaxAgeSeconds: 1800,
+      trackedAccounts: 2,
+      effectivePendingPercent: 2.25,
+      maximumLearnedScale: 1.8,
     });
     expect(result.subscriptions[0]?.quota.refresh.attemptCount).toBe(8);
     expect(result.subscriptions[0]?.profileRefresh.successCount).toBe(3);
