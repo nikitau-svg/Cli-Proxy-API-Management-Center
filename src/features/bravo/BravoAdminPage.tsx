@@ -59,6 +59,8 @@ interface ProjectDraft {
 interface IssuedKey {
   projectName: string;
   plaintext: string;
+  limitsEndpoint: string;
+  routesEndpoint: string;
 }
 
 interface TariffDraft {
@@ -259,6 +261,22 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
       `  -H "Authorization: Bearer $OPENAI_API_KEY" \\`,
       `  -H "Content-Type: application/json" \\`,
       `  -d '{"model":"bravo/sol","input":"Hello"}'`,
+    ].join('\n');
+  }, [issuedKey, serverBase]);
+
+  const limitsStatusCommand = useMemo(() => {
+    if (!issuedKey) return '';
+    return [
+      `curl -sS ${shellQuote(`${serverBase}${issuedKey.limitsEndpoint}?format=text`)} \\`,
+      `  -H ${shellQuote(`Authorization: Bearer ${issuedKey.plaintext}`)}`,
+    ].join('\n');
+  }, [issuedKey, serverBase]);
+
+  const routesStatusCommand = useMemo(() => {
+    if (!issuedKey) return '';
+    return [
+      `curl -sS ${shellQuote(`${serverBase}${issuedKey.routesEndpoint}`)} \\`,
+      `  -H ${shellQuote(`Authorization: Bearer ${issuedKey.plaintext}`)}`,
     ].join('\n');
   }, [issuedKey, serverBase]);
 
@@ -529,7 +547,12 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
       if (editor.mode === 'create') {
         const result = await bravoApi.createProject(input);
         if (!result.plaintextKey) throw new Error(t('bravo.projects.key_missing'));
-        setIssuedKey({ projectName: result.project.name || name, plaintext: result.plaintextKey });
+        setIssuedKey({
+          projectName: result.project.name || name,
+          plaintext: result.plaintextKey,
+          limitsEndpoint: result.projectApi.limitsEndpoint,
+          routesEndpoint: result.projectApi.routesEndpoint,
+        });
         showNotification(t('bravo.projects.created'), 'success');
       } else {
         await bravoApi.updateProject(input);
@@ -584,6 +607,8 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
           setIssuedKey({
             projectName: result.project.name || project.name,
             plaintext: result.plaintextKey,
+            limitsEndpoint: result.projectApi.limitsEndpoint,
+            routesEndpoint: result.projectApi.routesEndpoint,
           });
           await loadOverview();
         } catch (err: unknown) {
@@ -1791,6 +1816,54 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
               </div>
               <pre>
                 <code>{openAISetup}</code>
+              </pre>
+            </div>
+          </div>
+          <div className={styles.keyHelp}>
+            <strong>{t('bravo.key.project_status_title')}</strong>
+            <span>{t('bravo.key.project_status_hint')}</span>
+          </div>
+          <div className={styles.setupGrid}>
+            <div className={styles.clientSetup}>
+              <div className={styles.setupHeading}>
+                <div>
+                  <strong>{t('bravo.key.limits_status')}</strong>
+                  <span>{t('bravo.key.limits_status_hint')}</span>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() =>
+                    void copyText(limitsStatusCommand, 'bravo.key.limits_status_copied')
+                  }
+                >
+                  <IconCopy size={15} />
+                  {t('common.copy')}
+                </Button>
+              </div>
+              <pre>
+                <code>{limitsStatusCommand}</code>
+              </pre>
+            </div>
+            <div className={styles.clientSetup}>
+              <div className={styles.setupHeading}>
+                <div>
+                  <strong>{t('bravo.key.routes_status')}</strong>
+                  <span>{t('bravo.key.routes_status_hint')}</span>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() =>
+                    void copyText(routesStatusCommand, 'bravo.key.routes_status_copied')
+                  }
+                >
+                  <IconCopy size={15} />
+                  {t('common.copy')}
+                </Button>
+              </div>
+              <pre>
+                <code>{routesStatusCommand}</code>
               </pre>
             </div>
           </div>

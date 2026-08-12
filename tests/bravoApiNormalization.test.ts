@@ -14,6 +14,29 @@ mock.module('../src/services/api/client', () => ({
 const bravoModule = import('../src/services/api/bravo');
 
 describe('Bravo API normalization', () => {
+  test('normalizes one-time project status and route endpoints with safe defaults', async () => {
+    const { normalizeBravoKeyIssueResponse } = await bravoModule;
+    const explicit = normalizeBravoKeyIssueResponse({
+      project: { id: 'project-a', name: 'Alpha' },
+      plaintext_key: 'brv_secret',
+      project_api: {
+        limits: { endpoint: '/v1/bravo/limits-v2' },
+        routes: { endpoint: '/v1/bravo/routes-v2' },
+      },
+    });
+    expect(explicit.plaintextKey).toBe('brv_secret');
+    expect(explicit.projectApi).toEqual({
+      limitsEndpoint: '/v1/bravo/limits-v2',
+      routesEndpoint: '/v1/bravo/routes-v2',
+    });
+
+    const fallback = normalizeBravoKeyIssueResponse({ plaintext_key: 'brv_old_server' });
+    expect(fallback.projectApi).toEqual({
+      limitsEndpoint: '/v1/bravo/limits',
+      routesEndpoint: '/v1/bravo/routes',
+    });
+  });
+
   test('keeps missing and invalid quota percentages unknown instead of coercing them to zero', async () => {
     const { normalizeBravoProjectsResponse } = await bravoModule;
     const result = normalizeBravoProjectsResponse({
