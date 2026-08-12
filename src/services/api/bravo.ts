@@ -160,6 +160,10 @@ export interface BravoProjectInput {
 export interface BravoKeyIssueResponse {
   project: BravoProject;
   plaintextKey: string;
+  projectApi: {
+    limitsEndpoint: string;
+    routesEndpoint: string;
+  };
 }
 
 export interface BravoSubscriptionPatch {
@@ -1488,11 +1492,19 @@ export const mergeBravoResponses = (
   quotaPolling: subscriptionsResponse.quotaPolling,
 });
 
-const normalizeKeyIssueResponse = (value: unknown): BravoKeyIssueResponse => {
+export const normalizeBravoKeyIssueResponse = (value: unknown): BravoKeyIssueResponse => {
   const source = isRecord(value) ? value : {};
+  const rawProjectApi = source.project_api ?? source.projectApi;
+  const projectApi = isRecord(rawProjectApi) ? rawProjectApi : {};
+  const limits = isRecord(projectApi.limits) ? projectApi.limits : {};
+  const routes = isRecord(projectApi.routes) ? projectApi.routes : {};
   return {
     project: normalizeProject(source.project),
     plaintextKey: asString(source.plaintext_key ?? source.plaintextKey ?? source.key).trim(),
+    projectApi: {
+      limitsEndpoint: asString(limits.endpoint).trim() || '/v1/bravo/limits',
+      routesEndpoint: asString(routes.endpoint).trim() || '/v1/bravo/routes',
+    },
   };
 };
 
@@ -1541,7 +1553,7 @@ export const bravoApi = {
   },
 
   async createProject(input: BravoProjectInput): Promise<BravoKeyIssueResponse> {
-    return normalizeKeyIssueResponse(
+    return normalizeBravoKeyIssueResponse(
       await apiClient.post('/bravo/projects', serializeBravoProject(input))
     );
   },
@@ -1553,7 +1565,7 @@ export const bravoApi = {
   },
 
   async rotateProjectKey(id: string): Promise<BravoKeyIssueResponse> {
-    return normalizeKeyIssueResponse(await apiClient.post('/bravo/projects/rotate', { id }));
+    return normalizeBravoKeyIssueResponse(await apiClient.post('/bravo/projects/rotate', { id }));
   },
 
   async deleteProject(id: string): Promise<void> {
@@ -1590,9 +1602,7 @@ export const bravoApi = {
     // refresh cannot flash the previous interval back into the form.
     for (let attempt = 0; attempt < 20; attempt += 1) {
       await waitForBravoReconfigure(100);
-      const effective = normalizeBravoProjectsResponse(
-        await apiClient.get('/bravo/subscriptions')
-      );
+      const effective = normalizeBravoProjectsResponse(await apiClient.get('/bravo/subscriptions'));
       if (effective.quotaPolling.usageIntervalSeconds === intervalSeconds) return true;
     }
     return false;
