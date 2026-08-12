@@ -113,6 +113,34 @@ export interface BravoAdaptiveAllocator {
   note: string;
 }
 
+export interface BravoAdaptiveAudit {
+  status: string;
+  verdict: string;
+  verdictMessage: string;
+  mode: string;
+  requestsObserved: number;
+  successfulRequests: number;
+  failedRequests: number;
+  actualExecutionAttempts: number;
+  requestsWithFallback: number;
+  wouldAdmitAttempts: number;
+  wouldWithholdAttempts: number;
+  unknownDecisionAttempts: number;
+  successfulWouldWithhold: number;
+  quotaFailuresWouldAdmit: number;
+  routingChangesApplied: number;
+  additionalProviderRequests: number;
+  queueDepth: number;
+  queueCapacity: number;
+  droppedRecords: number;
+  writeFailures: number;
+  rotationFailures: number;
+  diskBytes: number;
+  diskLimitBytes: number;
+  lastEventAt: string;
+  warning: string;
+}
+
 export interface BravoModelIssue {
   model: string;
   providerErrorCode: 'credits_required';
@@ -164,6 +192,7 @@ export interface BravoProjectsResponse {
   tariffs: BravoTariff[];
   quotaPolling: BravoQuotaPolling;
   adaptiveAllocator: BravoAdaptiveAllocator;
+  adaptiveAudit: BravoAdaptiveAudit;
 }
 
 export interface BravoProjectInput {
@@ -734,6 +763,42 @@ const normalizeAdaptiveAllocator = (value: unknown): BravoAdaptiveAllocator => {
     saturated: source.saturated === true,
     droppedAccounts: asFiniteNumber(source.dropped_accounts ?? source.droppedAccounts),
     note: asString(source.note).trim(),
+  };
+};
+
+const normalizeAdaptiveAudit = (value: unknown): BravoAdaptiveAudit => {
+  const source = isRecord(value) ? value : {};
+  const number = (snake: string, camel: string): number =>
+    asFiniteNumber(source[snake] ?? source[camel]);
+  return {
+    status: asString(source.status).trim().toLowerCase() || 'disabled',
+    verdict: asString(source.verdict).trim().toLowerCase() || 'collecting',
+    verdictMessage: asString(source.verdict_message ?? source.verdictMessage).trim(),
+    mode: asString(source.mode).trim().toLowerCase() || 'off',
+    requestsObserved: number('requests_observed', 'requestsObserved'),
+    successfulRequests: number('successful_requests', 'successfulRequests'),
+    failedRequests: number('failed_requests', 'failedRequests'),
+    actualExecutionAttempts: number('actual_execution_attempts', 'actualExecutionAttempts'),
+    requestsWithFallback: number('requests_with_fallback', 'requestsWithFallback'),
+    wouldAdmitAttempts: number('would_admit_attempts', 'wouldAdmitAttempts'),
+    wouldWithholdAttempts: number('would_withhold_attempts', 'wouldWithholdAttempts'),
+    unknownDecisionAttempts: number('unknown_decision_attempts', 'unknownDecisionAttempts'),
+    successfulWouldWithhold: number('successful_would_withhold', 'successfulWouldWithhold'),
+    quotaFailuresWouldAdmit: number('quota_failures_would_admit', 'quotaFailuresWouldAdmit'),
+    routingChangesApplied: number('routing_changes_applied', 'routingChangesApplied'),
+    additionalProviderRequests: number(
+      'additional_provider_requests',
+      'additionalProviderRequests'
+    ),
+    queueDepth: number('queue_depth', 'queueDepth'),
+    queueCapacity: number('queue_capacity', 'queueCapacity'),
+    droppedRecords: number('dropped_records', 'droppedRecords'),
+    writeFailures: number('write_failures', 'writeFailures'),
+    rotationFailures: number('rotation_failures', 'rotationFailures'),
+    diskBytes: number('disk_bytes', 'diskBytes'),
+    diskLimitBytes: number('disk_limit_bytes', 'diskLimitBytes'),
+    lastEventAt: safeTimestamp(source.last_event_at ?? source.lastEventAt),
+    warning: asString(source.warning).trim(),
   };
 };
 
@@ -1523,6 +1588,7 @@ export const normalizeBravoProjectsResponse = (value: unknown): BravoProjectsRes
     adaptiveAllocator: normalizeAdaptiveAllocator(
       source.adaptive_allocator ?? source.adaptiveAllocator
     ),
+    adaptiveAudit: normalizeAdaptiveAudit(source.adaptive_audit ?? source.adaptiveAudit),
   };
 };
 
@@ -1546,6 +1612,7 @@ export const mergeBravoResponses = (
       : projectsResponse.tariffs,
   quotaPolling: subscriptionsResponse.quotaPolling,
   adaptiveAllocator: subscriptionsResponse.adaptiveAllocator,
+  adaptiveAudit: subscriptionsResponse.adaptiveAudit,
 });
 
 export const normalizeBravoKeyIssueResponse = (value: unknown): BravoKeyIssueResponse => {

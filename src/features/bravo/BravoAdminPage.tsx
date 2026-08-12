@@ -108,6 +108,33 @@ const emptyData = (): BravoProjectsResponse => ({
     droppedAccounts: 0,
     note: '',
   },
+  adaptiveAudit: {
+    status: 'disabled',
+    verdict: 'collecting',
+    verdictMessage: '',
+    mode: 'off',
+    requestsObserved: 0,
+    successfulRequests: 0,
+    failedRequests: 0,
+    actualExecutionAttempts: 0,
+    requestsWithFallback: 0,
+    wouldAdmitAttempts: 0,
+    wouldWithholdAttempts: 0,
+    unknownDecisionAttempts: 0,
+    successfulWouldWithhold: 0,
+    quotaFailuresWouldAdmit: 0,
+    routingChangesApplied: 0,
+    additionalProviderRequests: 0,
+    queueDepth: 0,
+    queueCapacity: 0,
+    droppedRecords: 0,
+    writeFailures: 0,
+    rotationFailures: 0,
+    diskBytes: 0,
+    diskLimitBytes: 8 * 1024 * 1024,
+    lastEventAt: '',
+    warning: '',
+  },
 });
 
 const emptyDraft = (): ProjectDraft => ({
@@ -936,11 +963,41 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                   ? t('bravo.quota.adaptive_provider_io_warning')
                   : t('bravo.quota.adaptive_provider_io_none')}
               </span>
+              <span>
+                {t('bravo.quota.adaptive_audit_period', {
+                  requests: data.adaptiveAudit.requestsObserved,
+                  fallbacks: data.adaptiveAudit.requestsWithFallback,
+                })}
+              </span>
+              <span>
+                {t('bravo.quota.adaptive_audit_mismatches', {
+                  overprotect: data.adaptiveAudit.successfulWouldWithhold,
+                  underprotect: data.adaptiveAudit.quotaFailuresWouldAdmit,
+                })}
+              </span>
+              <span>
+                {t('bravo.quota.adaptive_audit_storage', {
+                  dropped: data.adaptiveAudit.droppedRecords,
+                  failures: data.adaptiveAudit.writeFailures + data.adaptiveAudit.rotationFailures,
+                })}
+              </span>
             </div>
             {data.adaptiveAllocator.saturated ? (
               <div className={styles.pollingWarning} role="note">
                 <IconAlertTriangle size={16} />
                 {t('bravo.quota.adaptive_saturated')}
+              </div>
+            ) : null}
+            {data.adaptiveAudit.verdictMessage ? (
+              <div
+                className={
+                  data.adaptiveAudit.verdict === 'ready_for_review'
+                    ? styles.adaptiveVerdict
+                    : styles.pollingWarning
+                }
+                role="note"
+              >
+                {data.adaptiveAudit.verdictMessage}
               </div>
             ) : null}
           </div>

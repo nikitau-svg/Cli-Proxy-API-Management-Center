@@ -165,6 +165,23 @@ describe('Bravo API normalization', () => {
         effective_pending_percent: 2.25,
         maximum_learned_scale: 1.8,
       },
+      adaptive_audit: {
+        status: 'ok',
+        verdict: 'ready_for_review',
+        verdict_message: 'Расхождений не обнаружено.',
+        mode: 'observe',
+        requests_observed: 41,
+        actual_execution_attempts: 46,
+        requests_with_fallback: 5,
+        would_admit_attempts: 40,
+        would_withhold_attempts: 6,
+        successful_would_withhold: 0,
+        quota_failures_would_admit: 0,
+        routing_changes_applied: 0,
+        additional_provider_requests: 0,
+        queue_capacity: 1024,
+        disk_limit_bytes: 8388608,
+      },
       subscriptions: [
         {
           auth_index: 'claude:polling',
@@ -197,6 +214,17 @@ describe('Bravo API normalization', () => {
       trackedAccounts: 2,
       effectivePendingPercent: 2.25,
       maximumLearnedScale: 1.8,
+    });
+    expect(result.adaptiveAudit).toMatchObject({
+      status: 'ok',
+      verdict: 'ready_for_review',
+      requestsObserved: 41,
+      actualExecutionAttempts: 46,
+      requestsWithFallback: 5,
+      successfulWouldWithhold: 0,
+      routingChangesApplied: 0,
+      additionalProviderRequests: 0,
+      diskLimitBytes: 8388608,
     });
     expect(result.subscriptions[0]?.quota.refresh.attemptCount).toBe(8);
     expect(result.subscriptions[0]?.profileRefresh.successCount).toBe(3);

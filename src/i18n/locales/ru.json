@@ -1954,6 +1954,9 @@
       "adaptive_provider_io_none": "Дополнительных обращений к подпискам: 0",
       "adaptive_provider_io_warning": "Внимание: обнаружены дополнительные обращения к подпискам",
       "adaptive_saturated": "Телеметрия достигла лимита памяти. Маршрутизация не затронута; старые записи остынут автоматически.",
+      "adaptive_audit_period": "Аудит 24 ч: {{requests}} запросов · {{fallbacks}} fallback",
+      "adaptive_audit_mismatches": "Расхождения: лишнее удержание {{overprotect}} · пропущенная quota-ошибка {{underprotect}}",
+      "adaptive_audit_storage": "Журнал: потеряно {{dropped}} · ошибок записи {{failures}}",
       "reasons": {
         "ready": "Доступна вторичным проектам",
         "reserve_floor": "Защищена резервным порогом",

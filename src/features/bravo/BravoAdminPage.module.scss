@@ -317,6 +317,17 @@
   font-size: 12px;
 }
 
+.adaptiveVerdict {
+  grid-column: 1 / -1;
+  color: #29b57d;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.adaptivePanel > .pollingWarning {
+  grid-column: 1 / -1;
+}
+
 .subscriptionList {
   display: grid;
   gap: 8px;

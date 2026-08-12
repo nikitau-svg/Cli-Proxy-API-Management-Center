@@ -1976,6 +1976,9 @@
       "adaptive_provider_io_none": "Additional subscription requests: 0",
       "adaptive_provider_io_warning": "Warning: additional subscription requests detected",
       "adaptive_saturated": "Telemetry reached its memory bound. Routing is unaffected; old entries cool automatically.",
+      "adaptive_audit_period": "24h audit: {{requests}} requests · {{fallbacks}} fallbacks",
+      "adaptive_audit_mismatches": "Mismatches: over-protected {{overprotect}} · missed quota failures {{underprotect}}",
+      "adaptive_audit_storage": "Journal: dropped {{dropped}} · write failures {{failures}}",
       "reasons": {
         "ready": "Available to secondary projects",
         "reserve_floor": "Protected by reserve floor",
