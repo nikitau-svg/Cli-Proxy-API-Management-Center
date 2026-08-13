@@ -296,6 +296,84 @@ export interface BravoAnalyticsProjectSubscriptionModelBreakdown {
   usage: BravoAnalyticsUsage;
 }
 
+export type BravoQuotaConsumptionConfidence = 'collecting' | 'low' | 'medium' | 'high' | string;
+
+export interface BravoQuotaConsumptionPool {
+  samples: number;
+  skippedResetOrIncreaseSamples: number;
+  subscriptionHours: number;
+  observedDropPercent: number;
+  attributedProjectPercent: number;
+  attributedLocalUnassignedPercent: number;
+  externalOrEstimatorGapPercent: number;
+  averageObservedPPPerSubscriptionHour: number;
+  averageExternalPPPerSubscriptionHour: number;
+}
+
+export interface BravoQuotaConsumptionModel {
+  provider: string;
+  model: string;
+  logicalModel: string;
+  effort: string;
+  tariffId: string;
+  commitments: number;
+  attributedPercent: number;
+  shareOfProjectPercent: number;
+  baseX1EquivalentPercent: number;
+}
+
+export interface BravoQuotaConsumptionPlan {
+  tariffId: string;
+  multiplier: number;
+  attributedPercent: number;
+  baseX1EquivalentWindows: number;
+  averagePPPerHour: number;
+  peakHourlyPP: number;
+  estimatedSubscriptionsAtAveragePace: number;
+  estimatedSubscriptionsAtPeakPace: number;
+  currentSubscriptions: number;
+  estimatedAdditionalAtPeakPace: number;
+  estimatedSpareAtPeakPace: number;
+  suggestedAction: string;
+}
+
+export interface BravoQuotaConsumptionProject {
+  rank: number;
+  projectId: string;
+  commitments: number;
+  estimatedPercent: number;
+  attributedPercent: number;
+  shareOfAttributedPoolPercent: number;
+  averagePPPerHour: number;
+  peakHourlyPP: number;
+  subscriptionWindowsConsumed: number;
+  baseX1EquivalentWindows: number;
+  models: BravoQuotaConsumptionModel[];
+  plans: BravoQuotaConsumptionPlan[];
+  signals: string[];
+}
+
+export interface BravoQuotaConsumptionWindow {
+  provider: string;
+  kind: string;
+  quotaModel: string;
+  confidence: BravoQuotaConsumptionConfidence;
+  sharedPool: BravoQuotaConsumptionPool | null;
+  projects: BravoQuotaConsumptionProject[];
+}
+
+export interface BravoQuotaConsumption {
+  unit: string;
+  status: string;
+  windowsIndependent: boolean;
+  sharedPoolVisible: boolean;
+  coverageFrom: string;
+  generatedAt: string;
+  attributionMethod: string;
+  windows: BravoQuotaConsumptionWindow[];
+  note: string;
+}
+
 export interface BravoAnalyticsResponse {
   schemaVersion: number;
   from: string;
@@ -313,6 +391,7 @@ export interface BravoAnalyticsResponse {
   };
   coverageFrom: string;
   breakdownCoverageFrom: string;
+  quotaConsumption: BravoQuotaConsumption;
   summary: BravoAnalyticsUsage;
   series: BravoAnalyticsPoint[];
   subscriptionTimeline: BravoAnalyticsSubscriptionTimelinePoint[];
@@ -327,7 +406,7 @@ export interface BravoAnalyticsResponse {
 }
 
 export interface BravoAnalyticsQuery {
-  projectId: string;
+  projectId?: string;
   from: string;
   to: string;
   interval: BravoAnalyticsInterval;
@@ -1002,6 +1081,166 @@ const usageFromBreakdown = (source: Record<string, unknown>): BravoAnalyticsUsag
 const normalizeAnalyticsInterval = (value: unknown): BravoAnalyticsInterval =>
   asString(value).trim().toLowerCase() === 'hour' ? 'hour' : 'day';
 
+const normalizeQuotaConsumptionPool = (value: unknown): BravoQuotaConsumptionPool | null => {
+  if (!isRecord(value)) return null;
+  return {
+    samples: asFiniteNumber(value.samples),
+    skippedResetOrIncreaseSamples: asFiniteNumber(
+      value.skipped_reset_or_increase_samples ?? value.skippedResetOrIncreaseSamples
+    ),
+    subscriptionHours: asFiniteNumber(value.subscription_hours ?? value.subscriptionHours),
+    observedDropPercent: asFiniteNumber(value.observed_drop_percent ?? value.observedDropPercent),
+    attributedProjectPercent: asFiniteNumber(
+      value.attributed_project_percent ?? value.attributedProjectPercent
+    ),
+    attributedLocalUnassignedPercent: asFiniteNumber(
+      value.attributed_local_unassigned_percent ?? value.attributedLocalUnassignedPercent
+    ),
+    externalOrEstimatorGapPercent: asFiniteNumber(
+      value.external_or_estimator_gap_percent ?? value.externalOrEstimatorGapPercent
+    ),
+    averageObservedPPPerSubscriptionHour: asFiniteNumber(
+      value.average_observed_pp_per_subscription_hour ?? value.averageObservedPPPerSubscriptionHour
+    ),
+    averageExternalPPPerSubscriptionHour: asFiniteNumber(
+      value.average_external_pp_per_subscription_hour ?? value.averageExternalPPPerSubscriptionHour
+    ),
+  };
+};
+
+const normalizeQuotaConsumptionModel = (value: unknown): BravoQuotaConsumptionModel | null => {
+  const source = isRecord(value) ? value : {};
+  const provider = asString(source.provider).trim().toLowerCase();
+  const model = asString(source.model).trim();
+  const logicalModel = asString(source.logical_model ?? source.logicalModel).trim();
+  if (!provider && !model && !logicalModel) return null;
+  return {
+    provider,
+    model,
+    logicalModel,
+    effort: asString(source.effort).trim().toLowerCase(),
+    tariffId: asString(source.tariff_id ?? source.tariffId)
+      .trim()
+      .toLowerCase(),
+    commitments: asFiniteNumber(source.commitments),
+    attributedPercent: asFiniteNumber(source.attributed_percent ?? source.attributedPercent),
+    shareOfProjectPercent: asFiniteNumber(
+      source.share_of_project_percent ?? source.shareOfProjectPercent
+    ),
+    baseX1EquivalentPercent: asFiniteNumber(
+      source.base_x1_equivalent_percent ?? source.baseX1EquivalentPercent
+    ),
+  };
+};
+
+const normalizeQuotaConsumptionPlan = (value: unknown): BravoQuotaConsumptionPlan | null => {
+  const source = isRecord(value) ? value : {};
+  const tariffId = asString(source.tariff_id ?? source.tariffId)
+    .trim()
+    .toLowerCase();
+  const multiplier = asFiniteNumber(source.multiplier, 1);
+  if (!tariffId && multiplier <= 0) return null;
+  return {
+    tariffId,
+    multiplier: multiplier > 0 ? multiplier : 1,
+    attributedPercent: asFiniteNumber(source.attributed_percent ?? source.attributedPercent),
+    baseX1EquivalentWindows: asFiniteNumber(
+      source.base_x1_equivalent_windows ?? source.baseX1EquivalentWindows
+    ),
+    averagePPPerHour: asFiniteNumber(source.average_pp_per_hour ?? source.averagePPPerHour),
+    peakHourlyPP: asFiniteNumber(source.peak_hourly_pp ?? source.peakHourlyPP),
+    estimatedSubscriptionsAtAveragePace: asFiniteNumber(
+      source.estimated_subscriptions_at_average_pace ?? source.estimatedSubscriptionsAtAveragePace
+    ),
+    estimatedSubscriptionsAtPeakPace: asFiniteNumber(
+      source.estimated_subscriptions_at_peak_pace ?? source.estimatedSubscriptionsAtPeakPace
+    ),
+    currentSubscriptions: asFiniteNumber(
+      source.current_subscriptions ?? source.currentSubscriptions
+    ),
+    estimatedAdditionalAtPeakPace: asFiniteNumber(
+      source.estimated_additional_at_peak_pace ?? source.estimatedAdditionalAtPeakPace
+    ),
+    estimatedSpareAtPeakPace: asFiniteNumber(
+      source.estimated_spare_at_peak_pace ?? source.estimatedSpareAtPeakPace
+    ),
+    suggestedAction: asString(source.suggested_action ?? source.suggestedAction).trim(),
+  };
+};
+
+const normalizeQuotaConsumptionProject = (value: unknown): BravoQuotaConsumptionProject | null => {
+  const source = isRecord(value) ? value : {};
+  const projectId = asString(source.project_id ?? source.projectId).trim();
+  if (!projectId) return null;
+  return {
+    rank: asFiniteNumber(source.rank),
+    projectId,
+    commitments: asFiniteNumber(source.commitments),
+    estimatedPercent: asFiniteNumber(source.estimated_percent ?? source.estimatedPercent),
+    attributedPercent: asFiniteNumber(source.attributed_percent ?? source.attributedPercent),
+    shareOfAttributedPoolPercent: asFiniteNumber(
+      source.share_of_attributed_pool_percent ?? source.shareOfAttributedPoolPercent
+    ),
+    averagePPPerHour: asFiniteNumber(source.average_pp_per_hour ?? source.averagePPPerHour),
+    peakHourlyPP: asFiniteNumber(source.peak_hourly_pp ?? source.peakHourlyPP),
+    subscriptionWindowsConsumed: asFiniteNumber(
+      source.subscription_windows_consumed ?? source.subscriptionWindowsConsumed
+    ),
+    baseX1EquivalentWindows: asFiniteNumber(
+      source.base_x1_equivalent_windows ?? source.baseX1EquivalentWindows
+    ),
+    models: Array.isArray(source.models)
+      ? source.models
+          .map(normalizeQuotaConsumptionModel)
+          .filter((model): model is BravoQuotaConsumptionModel => model !== null)
+      : [],
+    plans: Array.isArray(source.plans)
+      ? source.plans
+          .map(normalizeQuotaConsumptionPlan)
+          .filter((plan): plan is BravoQuotaConsumptionPlan => plan !== null)
+      : [],
+    signals: asStringArray(source.signals),
+  };
+};
+
+const normalizeQuotaConsumptionWindow = (value: unknown): BravoQuotaConsumptionWindow | null => {
+  const source = isRecord(value) ? value : {};
+  const provider = asString(source.provider).trim().toLowerCase();
+  const kind = asString(source.kind).trim().toLowerCase();
+  if (!provider || !kind) return null;
+  return {
+    provider,
+    kind,
+    quotaModel: asString(source.quota_model ?? source.quotaModel).trim(),
+    confidence: asString(source.confidence).trim().toLowerCase() || ('collecting' as const),
+    sharedPool: normalizeQuotaConsumptionPool(source.shared_pool ?? source.sharedPool),
+    projects: Array.isArray(source.projects)
+      ? source.projects
+          .map(normalizeQuotaConsumptionProject)
+          .filter((project): project is BravoQuotaConsumptionProject => project !== null)
+      : [],
+  };
+};
+
+const normalizeQuotaConsumption = (value: unknown): BravoQuotaConsumption => {
+  const source = isRecord(value) ? value : {};
+  return {
+    unit: asString(source.unit).trim(),
+    status: asString(source.status).trim().toLowerCase() || 'collecting',
+    windowsIndependent: source.windows_independent === true || source.windowsIndependent === true,
+    sharedPoolVisible: source.shared_pool_visible === true || source.sharedPoolVisible === true,
+    coverageFrom: safeTimestamp(source.coverage_from ?? source.coverageFrom),
+    generatedAt: safeTimestamp(source.generated_at ?? source.generatedAt),
+    attributionMethod: asString(source.attribution_method ?? source.attributionMethod).trim(),
+    windows: Array.isArray(source.windows)
+      ? source.windows
+          .map(normalizeQuotaConsumptionWindow)
+          .filter((window): window is BravoQuotaConsumptionWindow => window !== null)
+      : [],
+    note: asString(source.note).trim(),
+  };
+};
+
 export const normalizeBravoAnalyticsResponse = (value: unknown): BravoAnalyticsResponse => {
   const source = isRecord(value) ? value : {};
   const filters = isRecord(source.filters) ? source.filters : {};
@@ -1037,6 +1276,9 @@ export const normalizeBravoAnalyticsResponse = (value: unknown): BravoAnalyticsR
     breakdownCoverageFrom: asString(
       source.breakdown_coverage_from ?? source.breakdownCoverageFrom
     ).trim(),
+    quotaConsumption: normalizeQuotaConsumption(
+      source.quota_consumption ?? source.quotaConsumption
+    ),
     summary: source.summary ? normalizeBravoAnalyticsUsage(source.summary) : emptyAnalyticsUsage(),
     series: Array.isArray(source.series)
       ? source.series
@@ -1735,7 +1977,7 @@ export const bravoApi = {
     return normalizeBravoAnalyticsResponse(
       await apiClient.get('/bravo/analytics', {
         params: {
-          project_id: query.projectId,
+          ...(query.projectId ? { project_id: query.projectId } : {}),
           from: query.from,
           to: query.to,
           interval: query.interval,

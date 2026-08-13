@@ -38,6 +38,7 @@ import { getErrorMessage } from '@/utils/helpers';
 import { formatBravoQuotaReset } from './bravoQuotaPresentation';
 import { BravoCompatibilityPanel } from './BravoCompatibilityPanel';
 import { BravoProjectAnalytics } from './BravoProjectAnalytics';
+import { BravoQuotaConsumptionPanel } from './BravoQuotaConsumptionPanel';
 import { BravoRouteTracePanel } from './BravoRouteTracePanel';
 import { BravoRouteEditor } from './BravoRouteEditor';
 import { bravoProviderLabel, formatBravoSubscriptionRecord } from './bravoSubscriptionPresentation';
@@ -843,6 +844,8 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
         <span>{t('bravo.effort.description')}</span>
         <code>/effort xhigh</code>
       </div>
+
+      <BravoQuotaConsumptionPanel connected={connected} projects={data.projects} />
 
       <BravoCompatibilityPanel />
 

@@ -843,4 +843,116 @@ describe('Bravo API normalization', () => {
       target: 'bravo/frontier',
     });
   });
+
+  test('normalizes subscription quota attribution, model pace, and capacity recommendations', async () => {
+    const { normalizeBravoAnalyticsResponse } = await bravoModule;
+    const result = normalizeBravoAnalyticsResponse({
+      quota_consumption: {
+        unit: 'subscription_quota_percentage_points',
+        status: 'available',
+        windows_independent: true,
+        shared_pool_visible: true,
+        coverage_from: '2026-08-01T00:00:00Z',
+        windows: [
+          {
+            provider: 'claude',
+            kind: 'weekly',
+            confidence: 'high',
+            shared_pool: {
+              samples: 12,
+              subscription_hours: 24,
+              observed_drop_percent: 20,
+              attributed_project_percent: 15,
+              external_or_estimator_gap_percent: 5,
+              average_observed_pp_per_subscription_hour: 0.83,
+            },
+            projects: [
+              {
+                rank: 1,
+                project_id: 'project-a',
+                commitments: 20,
+                attributed_percent: 15,
+                share_of_attributed_pool_percent: 100,
+                average_pp_per_hour: 0.63,
+                peak_hourly_pp: 4,
+                subscription_windows_consumed: 0.15,
+                base_x1_equivalent_windows: 0.75,
+                models: [
+                  {
+                    provider: 'claude',
+                    model: 'claude-fable-5',
+                    logical_model: 'bravo/fable',
+                    effort: 'max',
+                    tariff_id: 'x5',
+                    share_of_project_percent: 80,
+                  },
+                ],
+                plans: [
+                  {
+                    tariff_id: 'x5',
+                    multiplier: 5,
+                    current_subscriptions: 1,
+                    estimated_subscriptions_at_peak_pace: 1.4,
+                    estimated_additional_at_peak_pace: 0.4,
+                    suggested_action: 'Add capacity.',
+                  },
+                ],
+                signals: ['Fable max dominates consumption.'],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(result.quotaConsumption).toMatchObject({
+      status: 'available',
+      windowsIndependent: true,
+      sharedPoolVisible: true,
+      coverageFrom: '2026-08-01T00:00:00Z',
+    });
+    expect(result.quotaConsumption.windows[0]?.sharedPool).toMatchObject({
+      samples: 12,
+      observedDropPercent: 20,
+      attributedProjectPercent: 15,
+      externalOrEstimatorGapPercent: 5,
+    });
+    expect(result.quotaConsumption.windows[0]?.projects[0]).toMatchObject({
+      rank: 1,
+      projectId: 'project-a',
+      shareOfAttributedPoolPercent: 100,
+      peakHourlyPP: 4,
+    });
+    expect(result.quotaConsumption.windows[0]?.projects[0]?.models[0]).toMatchObject({
+      model: 'claude-fable-5',
+      logicalModel: 'bravo/fable',
+      effort: 'max',
+      tariffId: 'x5',
+    });
+    expect(result.quotaConsumption.windows[0]?.projects[0]?.plans[0]).toMatchObject({
+      currentSubscriptions: 1,
+      estimatedSubscriptionsAtPeakPace: 1.4,
+      estimatedAdditionalAtPeakPace: 0.4,
+    });
+  });
+
+  test('requests pool analytics without sending an empty project filter', async () => {
+    const { bravoApi } = await bravoModule;
+    await bravoApi.getAnalytics({
+      from: '2026-08-01T00:00:00Z',
+      to: '2026-08-08T00:00:00Z',
+      interval: 'day',
+    });
+
+    expect(apiGetCalls.pop()).toEqual({
+      url: '/bravo/analytics',
+      config: {
+        params: {
+          from: '2026-08-01T00:00:00Z',
+          to: '2026-08-08T00:00:00Z',
+          interval: 'day',
+        },
+      },
+    });
+  });
 });
