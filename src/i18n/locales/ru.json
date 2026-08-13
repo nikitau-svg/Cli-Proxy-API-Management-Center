@@ -1999,6 +1999,7 @@
       "adaptive_title": "Адаптивный allocator 0.9",
       "adaptive_observe": "Только наблюдение",
       "adaptive_off": "Выключен",
+      "adaptive_summary": "{{mode}} · записей в аудите: {{requests}}",
       "adaptive_hint": "Считает возможный расход в тени. Не блокирует запросы, не меняет маршруты и сам полностью остывает.",
       "adaptive_pending": "Эффективная теневая оценка: {{percent}}%",
       "adaptive_cooling": "Half-life {{halfLife}} мин · полное остывание {{maxAge}} мин",

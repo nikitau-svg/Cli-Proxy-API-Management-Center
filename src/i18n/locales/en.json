@@ -2021,6 +2021,7 @@
       "adaptive_title": "Adaptive allocator 0.9",
       "adaptive_observe": "Observe only",
       "adaptive_off": "Off",
+      "adaptive_summary": "{{mode}} · audit records: {{requests}}",
       "adaptive_hint": "Estimates possible usage in shadow. It never blocks requests, changes routes, or remains hot forever.",
       "adaptive_pending": "Effective shadow estimate: {{percent}}%",
       "adaptive_cooling": "Half-life {{halfLife}} min · fully cooled in {{maxAge}} min",
