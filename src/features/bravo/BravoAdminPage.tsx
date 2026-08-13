@@ -847,6 +847,96 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
 
       <BravoQuotaConsumptionPanel connected={connected} projects={data.projects} />
 
+      <details className={`${styles.sectionDisclosure} ${styles.adaptiveDisclosure}`}>
+        <summary>
+          <span className={styles.sectionTitle}>{t('bravo.quota.adaptive_title')}</span>
+          <span className={styles.sectionMeta}>
+            {t('bravo.quota.adaptive_summary', {
+              mode:
+                data.adaptiveAllocator.mode === 'observe'
+                  ? t('bravo.quota.adaptive_observe')
+                  : t('bravo.quota.adaptive_off'),
+              requests: data.adaptiveAudit.requestsObserved,
+            })}
+          </span>
+          <span className={styles.chevron} aria-hidden="true">
+            ›
+          </span>
+        </summary>
+        <div className={styles.sectionBody}>
+          <div className={styles.adaptivePanel} role="status">
+            <div className={styles.adaptiveCopy}>
+              <div className={styles.adaptiveHeading}>
+                <strong>{t('bravo.quota.adaptive_title')}</strong>
+                <span className={styles.adaptiveStatus}>
+                  {data.adaptiveAllocator.mode === 'observe'
+                    ? t('bravo.quota.adaptive_observe')
+                    : t('bravo.quota.adaptive_off')}
+                </span>
+              </div>
+              <span>{t('bravo.quota.adaptive_hint')}</span>
+            </div>
+            <div className={styles.adaptiveMetrics}>
+              <span>
+                {t('bravo.quota.adaptive_pending', {
+                  percent: compactNumber(
+                    data.adaptiveAllocator.effectivePendingPercent,
+                    i18n.language
+                  ),
+                })}
+              </span>
+              <span>
+                {t('bravo.quota.adaptive_cooling', {
+                  halfLife: Math.round(data.adaptiveAllocator.coolingHalfLifeSeconds / 60),
+                  maxAge: Math.round(data.adaptiveAllocator.coolingMaxAgeSeconds / 60),
+                })}
+              </span>
+              <span>
+                {data.adaptiveAllocator.additionalProviderRequests
+                  ? t('bravo.quota.adaptive_provider_io_warning')
+                  : t('bravo.quota.adaptive_provider_io_none')}
+              </span>
+              <span>
+                {t('bravo.quota.adaptive_audit_period', {
+                  requests: data.adaptiveAudit.requestsObserved,
+                  fallbacks: data.adaptiveAudit.requestsWithFallback,
+                })}
+              </span>
+              <span>
+                {t('bravo.quota.adaptive_audit_mismatches', {
+                  overprotect: data.adaptiveAudit.successfulWouldWithhold,
+                  underprotect: data.adaptiveAudit.quotaFailuresWouldAdmit,
+                })}
+              </span>
+              <span>
+                {t('bravo.quota.adaptive_audit_storage', {
+                  dropped: data.adaptiveAudit.droppedRecords,
+                  failures: data.adaptiveAudit.writeFailures + data.adaptiveAudit.rotationFailures,
+                })}
+              </span>
+            </div>
+            {data.adaptiveAllocator.saturated ? (
+              <div className={styles.pollingWarning} role="note">
+                <IconAlertTriangle size={16} />
+                {t('bravo.quota.adaptive_saturated')}
+              </div>
+            ) : null}
+            {data.adaptiveAudit.verdictMessage ? (
+              <div
+                className={
+                  data.adaptiveAudit.verdict === 'ready_for_review'
+                    ? styles.adaptiveVerdict
+                    : styles.pollingWarning
+                }
+                role="note"
+              >
+                {data.adaptiveAudit.verdictMessage}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </details>
+
       <BravoCompatibilityPanel />
 
       {error ? (
@@ -932,77 +1022,6 @@ export function BravoAdminPage({ dashboardURL = '' }: BravoAdminPageProps) {
                 })}
               </span>
             </div>
-          </div>
-
-          <div className={styles.adaptivePanel} role="status">
-            <div className={styles.adaptiveCopy}>
-              <div className={styles.adaptiveHeading}>
-                <strong>{t('bravo.quota.adaptive_title')}</strong>
-                <span className={styles.adaptiveStatus}>
-                  {data.adaptiveAllocator.mode === 'observe'
-                    ? t('bravo.quota.adaptive_observe')
-                    : t('bravo.quota.adaptive_off')}
-                </span>
-              </div>
-              <span>{t('bravo.quota.adaptive_hint')}</span>
-            </div>
-            <div className={styles.adaptiveMetrics}>
-              <span>
-                {t('bravo.quota.adaptive_pending', {
-                  percent: compactNumber(
-                    data.adaptiveAllocator.effectivePendingPercent,
-                    i18n.language
-                  ),
-                })}
-              </span>
-              <span>
-                {t('bravo.quota.adaptive_cooling', {
-                  halfLife: Math.round(data.adaptiveAllocator.coolingHalfLifeSeconds / 60),
-                  maxAge: Math.round(data.adaptiveAllocator.coolingMaxAgeSeconds / 60),
-                })}
-              </span>
-              <span>
-                {data.adaptiveAllocator.additionalProviderRequests
-                  ? t('bravo.quota.adaptive_provider_io_warning')
-                  : t('bravo.quota.adaptive_provider_io_none')}
-              </span>
-              <span>
-                {t('bravo.quota.adaptive_audit_period', {
-                  requests: data.adaptiveAudit.requestsObserved,
-                  fallbacks: data.adaptiveAudit.requestsWithFallback,
-                })}
-              </span>
-              <span>
-                {t('bravo.quota.adaptive_audit_mismatches', {
-                  overprotect: data.adaptiveAudit.successfulWouldWithhold,
-                  underprotect: data.adaptiveAudit.quotaFailuresWouldAdmit,
-                })}
-              </span>
-              <span>
-                {t('bravo.quota.adaptive_audit_storage', {
-                  dropped: data.adaptiveAudit.droppedRecords,
-                  failures: data.adaptiveAudit.writeFailures + data.adaptiveAudit.rotationFailures,
-                })}
-              </span>
-            </div>
-            {data.adaptiveAllocator.saturated ? (
-              <div className={styles.pollingWarning} role="note">
-                <IconAlertTriangle size={16} />
-                {t('bravo.quota.adaptive_saturated')}
-              </div>
-            ) : null}
-            {data.adaptiveAudit.verdictMessage ? (
-              <div
-                className={
-                  data.adaptiveAudit.verdict === 'ready_for_review'
-                    ? styles.adaptiveVerdict
-                    : styles.pollingWarning
-                }
-                role="note"
-              >
-                {data.adaptiveAudit.verdictMessage}
-              </div>
-            ) : null}
           </div>
 
           {data.subscriptions.length === 0 ? (

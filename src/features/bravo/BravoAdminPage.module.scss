@@ -170,6 +170,13 @@
   }
 }
 
+.adaptiveDisclosure {
+  margin-top: 16px;
+  margin-bottom: 16px;
+  border-color: color-mix(in srgb, #29b57d 32%, var(--border-color));
+  background: color-mix(in srgb, #29b57d 5%, var(--bg-secondary));
+}
+
 .sectionTitle {
   color: var(--text-primary);
   font-size: 16px;
