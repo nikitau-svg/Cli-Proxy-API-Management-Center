@@ -267,6 +267,67 @@
   flex-wrap: wrap;
 }
 
+.adaptivePanel {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(280px, auto);
+  align-items: center;
+  gap: 10px 18px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, #29b57d 32%, var(--border-color));
+  border-radius: 12px;
+  background: color-mix(in srgb, #29b57d 7%, var(--bg-secondary));
+}
+
+.adaptiveCopy {
+  display: grid;
+  gap: 5px;
+
+  > span {
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+}
+
+.adaptiveHeading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+
+  strong {
+    color: var(--text-primary);
+  }
+}
+
+.adaptiveStatus {
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: #29b57d;
+  background: color-mix(in srgb, #29b57d 12%, transparent);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.adaptiveMetrics {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.adaptiveVerdict {
+  grid-column: 1 / -1;
+  color: #29b57d;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.adaptivePanel > .pollingWarning {
+  grid-column: 1 / -1;
+}
+
 .subscriptionList {
   display: grid;
   gap: 8px;
@@ -1228,6 +1289,7 @@
 
   .poolToolbar,
   .pollingPanel,
+  .adaptivePanel,
   .projectActions {
     align-items: stretch;
     flex-direction: column;
@@ -1239,6 +1301,14 @@
 
   .pollingPanel {
     grid-template-columns: 1fr;
+  }
+
+  .adaptivePanel {
+    grid-template-columns: 1fr;
+  }
+
+  .adaptiveMetrics {
+    justify-items: start;
   }
 
   .pollingControl {

@@ -151,6 +151,37 @@ describe('Bravo API normalization', () => {
         usage_requests: { attempts: 12, success: 9, failure: 3 },
         profile_requests: { attempts: 4, success: 4, failure: 0 },
       },
+      adaptive_allocator: {
+        mode: 'observe',
+        effect: 'shadow_only',
+        routing_enforced: false,
+        additional_provider_requests: false,
+        quota_snapshot_source: 'existing_background_cache',
+        cooling_half_life_seconds: 300,
+        cooling_max_age_seconds: 1800,
+        tracked_accounts: 2,
+        tracked_commitments: 7,
+        raw_pending_percent: 4.5,
+        effective_pending_percent: 2.25,
+        maximum_learned_scale: 1.8,
+      },
+      adaptive_audit: {
+        status: 'ok',
+        verdict: 'ready_for_review',
+        verdict_message: 'Расхождений не обнаружено.',
+        mode: 'observe',
+        requests_observed: 41,
+        actual_execution_attempts: 46,
+        requests_with_fallback: 5,
+        would_admit_attempts: 40,
+        would_withhold_attempts: 6,
+        successful_would_withhold: 0,
+        quota_failures_would_admit: 0,
+        routing_changes_applied: 0,
+        additional_provider_requests: 0,
+        queue_capacity: 1024,
+        disk_limit_bytes: 8388608,
+      },
       subscriptions: [
         {
           auth_index: 'claude:polling',
@@ -172,6 +203,28 @@ describe('Bravo API normalization', () => {
       attempts: 12,
       success: 9,
       failure: 3,
+    });
+    expect(result.adaptiveAllocator).toMatchObject({
+      mode: 'observe',
+      effect: 'shadow_only',
+      routingEnforced: false,
+      additionalProviderRequests: false,
+      coolingHalfLifeSeconds: 300,
+      coolingMaxAgeSeconds: 1800,
+      trackedAccounts: 2,
+      effectivePendingPercent: 2.25,
+      maximumLearnedScale: 1.8,
+    });
+    expect(result.adaptiveAudit).toMatchObject({
+      status: 'ok',
+      verdict: 'ready_for_review',
+      requestsObserved: 41,
+      actualExecutionAttempts: 46,
+      requestsWithFallback: 5,
+      successfulWouldWithhold: 0,
+      routingChangesApplied: 0,
+      additionalProviderRequests: 0,
+      diskLimitBytes: 8388608,
     });
     expect(result.subscriptions[0]?.quota.refresh.attemptCount).toBe(8);
     expect(result.subscriptions[0]?.profileRefresh.successCount).toBe(3);
@@ -788,6 +841,118 @@ describe('Bravo API normalization', () => {
       kind: 'route',
       title: 'Add the candidate',
       target: 'bravo/frontier',
+    });
+  });
+
+  test('normalizes subscription quota attribution, model pace, and capacity recommendations', async () => {
+    const { normalizeBravoAnalyticsResponse } = await bravoModule;
+    const result = normalizeBravoAnalyticsResponse({
+      quota_consumption: {
+        unit: 'subscription_quota_percentage_points',
+        status: 'available',
+        windows_independent: true,
+        shared_pool_visible: true,
+        coverage_from: '2026-08-01T00:00:00Z',
+        windows: [
+          {
+            provider: 'claude',
+            kind: 'weekly',
+            confidence: 'high',
+            shared_pool: {
+              samples: 12,
+              subscription_hours: 24,
+              observed_drop_percent: 20,
+              attributed_project_percent: 15,
+              external_or_estimator_gap_percent: 5,
+              average_observed_pp_per_subscription_hour: 0.83,
+            },
+            projects: [
+              {
+                rank: 1,
+                project_id: 'project-a',
+                commitments: 20,
+                attributed_percent: 15,
+                share_of_attributed_pool_percent: 100,
+                average_pp_per_hour: 0.63,
+                peak_hourly_pp: 4,
+                subscription_windows_consumed: 0.15,
+                base_x1_equivalent_windows: 0.75,
+                models: [
+                  {
+                    provider: 'claude',
+                    model: 'claude-fable-5',
+                    logical_model: 'bravo/fable',
+                    effort: 'max',
+                    tariff_id: 'x5',
+                    share_of_project_percent: 80,
+                  },
+                ],
+                plans: [
+                  {
+                    tariff_id: 'x5',
+                    multiplier: 5,
+                    current_subscriptions: 1,
+                    estimated_subscriptions_at_peak_pace: 1.4,
+                    estimated_additional_at_peak_pace: 0.4,
+                    suggested_action: 'Add capacity.',
+                  },
+                ],
+                signals: ['Fable max dominates consumption.'],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(result.quotaConsumption).toMatchObject({
+      status: 'available',
+      windowsIndependent: true,
+      sharedPoolVisible: true,
+      coverageFrom: '2026-08-01T00:00:00Z',
+    });
+    expect(result.quotaConsumption.windows[0]?.sharedPool).toMatchObject({
+      samples: 12,
+      observedDropPercent: 20,
+      attributedProjectPercent: 15,
+      externalOrEstimatorGapPercent: 5,
+    });
+    expect(result.quotaConsumption.windows[0]?.projects[0]).toMatchObject({
+      rank: 1,
+      projectId: 'project-a',
+      shareOfAttributedPoolPercent: 100,
+      peakHourlyPP: 4,
+    });
+    expect(result.quotaConsumption.windows[0]?.projects[0]?.models[0]).toMatchObject({
+      model: 'claude-fable-5',
+      logicalModel: 'bravo/fable',
+      effort: 'max',
+      tariffId: 'x5',
+    });
+    expect(result.quotaConsumption.windows[0]?.projects[0]?.plans[0]).toMatchObject({
+      currentSubscriptions: 1,
+      estimatedSubscriptionsAtPeakPace: 1.4,
+      estimatedAdditionalAtPeakPace: 0.4,
+    });
+  });
+
+  test('requests pool analytics without sending an empty project filter', async () => {
+    const { bravoApi } = await bravoModule;
+    await bravoApi.getAnalytics({
+      from: '2026-08-01T00:00:00Z',
+      to: '2026-08-08T00:00:00Z',
+      interval: 'day',
+    });
+
+    expect(apiGetCalls.pop()).toEqual({
+      url: '/bravo/analytics',
+      config: {
+        params: {
+          from: '2026-08-01T00:00:00Z',
+          to: '2026-08-08T00:00:00Z',
+          interval: 'day',
+        },
+      },
     });
   });
 });
