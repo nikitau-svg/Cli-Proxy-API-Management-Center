@@ -1820,6 +1820,24 @@
       "pace": "Average pool pace",
       "pp_per_hour": "{{value}} pp/h",
       "samples": "Confirmed snapshots: {{count}}",
+      "forecast": {
+        "title": "Forecast backtest",
+        "subtitle": "Pre-request prediction compared with the next confirmed observation",
+        "status": {
+          "collecting": "collecting pairs",
+          "available": "data available"
+        },
+        "paired": "Paired intervals",
+        "skipped": "Skipped: uncalibrated {{uncalibrated}} · no local requests {{noLocal}}",
+        "mean_prediction_actual": "Mean prediction / actual",
+        "pp_per_interval": "pp per confirmed interval",
+        "bias_mae": "Mean bias / MAE",
+        "positive_bias": "positive means underprediction",
+        "p95_max": "p95 / maximum",
+        "underprediction_pp": "underprediction, pp",
+        "coverage": "Intervals covered by the reservation",
+        "caveat": "Positive error is an upper bound for slippage: it may include usage by external clients of the same subscription. Windows are evaluated independently."
+      },
       "pool_composition": "Pool consumption composition",
       "windows_independent": "Windows are independent and are not added together",
       "unassigned": "Local, no project",

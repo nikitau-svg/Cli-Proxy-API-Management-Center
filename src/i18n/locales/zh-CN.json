@@ -1820,6 +1820,24 @@
       "pace": "池平均速度",
       "pp_per_hour": "{{value}} 个百分点/小时",
       "samples": "已确认快照：{{count}}",
+      "forecast": {
+        "title": "预测回测",
+        "subtitle": "将请求前预测与下一次确认观测进行比较",
+        "status": {
+          "collecting": "正在收集配对数据",
+          "available": "数据已就绪"
+        },
+        "paired": "已配对区间",
+        "skipped": "已跳过：未校准 {{uncalibrated}} · 无本地请求 {{noLocal}}",
+        "mean_prediction_actual": "平均预测 / 实际",
+        "pp_per_interval": "每个确认区间的百分点",
+        "bias_mae": "平均偏差 / MAE",
+        "positive_bias": "正值表示预测不足",
+        "p95_max": "p95 / 最大值",
+        "underprediction_pp": "预测不足，百分点",
+        "coverage": "预留额度足够的区间",
+        "caveat": "正误差是滑移的上限估计：其中可能包含同一订阅的外部客户端用量。各窗口独立评估。"
+      },
       "pool_composition": "池消耗构成",
       "windows_independent": "各窗口相互独立，不可相加",
       "unassigned": "本地但未归属项目",

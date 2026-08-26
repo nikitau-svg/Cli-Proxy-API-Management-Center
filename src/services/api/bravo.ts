@@ -298,6 +298,30 @@ export interface BravoAnalyticsProjectSubscriptionModelBreakdown {
 
 export type BravoQuotaConsumptionConfidence = 'collecting' | 'low' | 'medium' | 'high' | string;
 
+export interface BravoForecastBacktestWindow {
+  provider: string;
+  windowKind: string;
+  quotaModel: string;
+  status: string;
+  pairedIntervals: number;
+  skippedUncalibratedIntervals: number;
+  skippedNoLocalIntervals: number;
+  coverageSeconds: number;
+  predictedDropPercent: number;
+  actualDropPercent: number;
+  meanPredictedPPPerInterval: number;
+  meanActualPPPerInterval: number;
+  meanBiasPPPerInterval: number;
+  meanAbsoluteErrorPPPerInterval: number;
+  underpredictionPercent: number;
+  overpredictionPercent: number;
+  underpredictionIntervals: number;
+  overpredictionIntervals: number;
+  conservativeCoveragePercent: number;
+  underpredictionP95Percent: number;
+  maximumUnderpredictionPercent: number;
+}
+
 export interface BravoQuotaConsumptionPool {
   samples: number;
   skippedResetOrIncreaseSamples: number;
@@ -308,6 +332,7 @@ export interface BravoQuotaConsumptionPool {
   externalOrEstimatorGapPercent: number;
   averageObservedPPPerSubscriptionHour: number;
   averageExternalPPPerSubscriptionHour: number;
+  forecastBacktest: BravoForecastBacktestWindow | null;
 }
 
 export interface BravoQuotaConsumptionModel {
@@ -1104,6 +1129,57 @@ const normalizeQuotaConsumptionPool = (value: unknown): BravoQuotaConsumptionPoo
     ),
     averageExternalPPPerSubscriptionHour: asFiniteNumber(
       value.average_external_pp_per_subscription_hour ?? value.averageExternalPPPerSubscriptionHour
+    ),
+    forecastBacktest: normalizeForecastBacktestWindow(
+      value.forecast_backtest ?? value.forecastBacktest
+    ),
+  };
+};
+
+const normalizeForecastBacktestWindow = (value: unknown): BravoForecastBacktestWindow | null => {
+  if (!isRecord(value)) return null;
+  const number = (snake: string, camel: string): number =>
+    asFiniteNumber(value[snake] ?? value[camel]);
+  return {
+    provider: asString(value.provider).trim().toLowerCase(),
+    windowKind: asString(value.window_kind ?? value.windowKind)
+      .trim()
+      .toLowerCase(),
+    quotaModel: asString(value.quota_model ?? value.quotaModel)
+      .trim()
+      .toLowerCase(),
+    status: asString(value.status).trim().toLowerCase() || 'collecting',
+    pairedIntervals: number('paired_intervals', 'pairedIntervals'),
+    skippedUncalibratedIntervals: number(
+      'skipped_uncalibrated_intervals',
+      'skippedUncalibratedIntervals'
+    ),
+    skippedNoLocalIntervals: number('skipped_no_local_intervals', 'skippedNoLocalIntervals'),
+    coverageSeconds: number('coverage_seconds', 'coverageSeconds'),
+    predictedDropPercent: number('predicted_drop_percent', 'predictedDropPercent'),
+    actualDropPercent: number('actual_drop_percent', 'actualDropPercent'),
+    meanPredictedPPPerInterval: number(
+      'mean_predicted_pp_per_interval',
+      'meanPredictedPPPerInterval'
+    ),
+    meanActualPPPerInterval: number('mean_actual_pp_per_interval', 'meanActualPPPerInterval'),
+    meanBiasPPPerInterval: number('mean_bias_pp_per_interval', 'meanBiasPPPerInterval'),
+    meanAbsoluteErrorPPPerInterval: number(
+      'mean_absolute_error_pp_per_interval',
+      'meanAbsoluteErrorPPPerInterval'
+    ),
+    underpredictionPercent: number('underprediction_percent', 'underpredictionPercent'),
+    overpredictionPercent: number('overprediction_percent', 'overpredictionPercent'),
+    underpredictionIntervals: number('underprediction_intervals', 'underpredictionIntervals'),
+    overpredictionIntervals: number('overprediction_intervals', 'overpredictionIntervals'),
+    conservativeCoveragePercent: number(
+      'conservative_coverage_percent',
+      'conservativeCoveragePercent'
+    ),
+    underpredictionP95Percent: number('underprediction_p95_percent', 'underpredictionP95Percent'),
+    maximumUnderpredictionPercent: number(
+      'maximum_underprediction_percent',
+      'maximumUnderpredictionPercent'
     ),
   };
 };

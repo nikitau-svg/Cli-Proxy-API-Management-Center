@@ -148,6 +148,7 @@ export function BravoQuotaConsumptionPanel({
   };
 
   const pool = selectedWindow?.sharedPool ?? null;
+  const forecast = pool?.forecastBacktest ?? null;
   const empty = !loading && (!analytics || analytics.quotaConsumption.status !== 'available');
 
   return (
@@ -271,6 +272,70 @@ export function BravoQuotaConsumptionPanel({
               <small>{t('bravo.quota_consumption.samples', { count: pool?.samples ?? 0 })}</small>
             </div>
           </div>
+
+          {forecast ? (
+            <div className={styles.forecast}>
+              <div className={styles.forecastHeading}>
+                <div>
+                  <strong>{t('bravo.quota_consumption.forecast.title')}</strong>
+                  <span>{t('bravo.quota_consumption.forecast.subtitle')}</span>
+                </div>
+                <span className={`${styles.confidence} ${styles[forecast.status] ?? ''}`}>
+                  {t(`bravo.quota_consumption.forecast.status.${forecast.status}`, {
+                    defaultValue: forecast.status,
+                  })}
+                </span>
+              </div>
+              <div className={styles.forecastMetrics}>
+                <span>
+                  {t('bravo.quota_consumption.forecast.paired')}
+                  <strong>{formatNumber(forecast.pairedIntervals, locale, 0)}</strong>
+                  <small>
+                    {t('bravo.quota_consumption.forecast.skipped', {
+                      uncalibrated: formatNumber(forecast.skippedUncalibratedIntervals, locale, 0),
+                      noLocal: formatNumber(forecast.skippedNoLocalIntervals, locale, 0),
+                    })}
+                  </small>
+                </span>
+                <span>
+                  {t('bravo.quota_consumption.forecast.mean_prediction_actual')}
+                  <strong>
+                    {formatNumber(forecast.meanPredictedPPPerInterval, locale, 3)} /{' '}
+                    {formatNumber(forecast.meanActualPPPerInterval, locale, 3)}
+                  </strong>
+                  <small>{t('bravo.quota_consumption.forecast.pp_per_interval')}</small>
+                </span>
+                <span>
+                  {t('bravo.quota_consumption.forecast.bias_mae')}
+                  <strong>
+                    {formatNumber(forecast.meanBiasPPPerInterval, locale, 3)} /{' '}
+                    {formatNumber(forecast.meanAbsoluteErrorPPPerInterval, locale, 3)}
+                  </strong>
+                  <small>{t('bravo.quota_consumption.forecast.positive_bias')}</small>
+                </span>
+                <span>
+                  {t('bravo.quota_consumption.forecast.p95_max')}
+                  <strong>
+                    {formatNumber(forecast.underpredictionP95Percent, locale, 3)} /{' '}
+                    {formatNumber(forecast.maximumUnderpredictionPercent, locale, 3)}
+                  </strong>
+                  <small>{t('bravo.quota_consumption.forecast.underprediction_pp')}</small>
+                </span>
+              </div>
+              <div className={styles.forecastCoverage}>
+                <span>{t('bravo.quota_consumption.forecast.coverage')}</span>
+                <i>
+                  <b
+                    style={{
+                      width: `${Math.max(0, Math.min(100, forecast.conservativeCoveragePercent))}%`,
+                    }}
+                  />
+                </i>
+                <strong>{formatPercent(forecast.conservativeCoveragePercent, locale)}</strong>
+              </div>
+              <p>{t('bravo.quota_consumption.forecast.caveat')}</p>
+            </div>
+          ) : null}
 
           {composition.length > 0 ? (
             <div className={styles.composition}>

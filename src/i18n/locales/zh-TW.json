@@ -1846,6 +1846,24 @@
       "pace": "池平均速度",
       "pp_per_hour": "{{value}} 個百分點/小時",
       "samples": "已確認快照：{{count}}",
+      "forecast": {
+        "title": "預測回測",
+        "subtitle": "將請求前預測與下一次確認觀測進行比較",
+        "status": {
+          "collecting": "正在收集配對資料",
+          "available": "資料已就緒"
+        },
+        "paired": "已配對區間",
+        "skipped": "已略過：未校準 {{uncalibrated}} · 無本機請求 {{noLocal}}",
+        "mean_prediction_actual": "平均預測 / 實際",
+        "pp_per_interval": "每個確認區間的百分點",
+        "bias_mae": "平均偏差 / MAE",
+        "positive_bias": "正值表示預測不足",
+        "p95_max": "p95 / 最大值",
+        "underprediction_pp": "預測不足，百分點",
+        "coverage": "預留額度足夠的區間",
+        "caveat": "正誤差是滑移的上限估計：其中可能包含同一訂閱的外部用戶端用量。各視窗獨立評估。"
+      },
       "pool_composition": "池消耗構成",
       "windows_independent": "各視窗互相獨立，不可相加",
       "unassigned": "本機但未歸屬專案",
